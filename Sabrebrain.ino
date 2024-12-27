@@ -2,6 +2,7 @@
 #include "RP2040_PWM.h"
 #include <Servo.h>
 #include "SparkFun_LIS331.h"
+#include <Arduino_LSM6DSOX.h>  // 2040 connect gyro
 #include <Wire.h>
 
 LIS331 xl;
@@ -19,10 +20,11 @@ int oneshot_Freq = 3500;
 int lightWidth = 15;
 int speed_int = 300;  // miliseconds between speed measurements
 int head_delay = -120;
-float correct_max = -0.1;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
+float correct_max = -0.05;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
+const float gyro_fudge = 1.145;
 
 // Robot stuff
-const float accel_rad = 75.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 70.0 / 1000.0;  // input in mm, outputs m
 
 // pins
 const int MOTOR_RIGHT_PIN = 25;
@@ -35,6 +37,7 @@ const int accel_pow = 6;
 RP2040_PWM *motor_Right;
 RP2040_PWM *motor_Left;
 float oneshot_Duty(int thoucentage);
+void command_motors(int left, int right);
 
 // RF stuff
 // note channel 5 is used for shutdown so not in the list
@@ -62,6 +65,7 @@ float zrotspd = 0;
 int16_t xoff = 0;
 int16_t yoff = 0;
 int16_t zoff = 0;
+float get_spin();
 
 // filter settings
 float x = 0.15;
@@ -122,16 +126,14 @@ void setup1() {
     }
   }
 
+  while (!IMU.begin()) {
+    Serial.println("Failed to initialize IMU!");
+    delay(1000);
+  }
+
   Serial.println("Thread 1 started");
-  // int16_t x, y, z;
-  // xl.readAxes(x, y, z);
   xoff = 10;
   yoff = 10;
-  // zoff = 0;
-  // Serial.println("Offsets:");
-  // Serial.println(xoff);
-  // Serial.println(xoff);
-  // delay(3000);
 }
 
 void loop() {  // Loop 0 handles crsf receive and motor commands
@@ -143,7 +145,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
   head = servoTothoucentage(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * correct_max) + 1;
   bool headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
-  
+
 
   int left_sig, right_sig;
 
@@ -153,7 +155,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
       float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
-      spin = spin + delta > 1000 ? 1000 - trans : spin;                                                                         // reduce spin speed if delta would push them over 1000
+      // spin = spin + delta > 1000 ? 1000 - trans : spin;  // reduce spin speed if delta would push them over 1000, removed for now as not really needed
       left_sig = spin + delta;
       right_sig = -spin + delta;
     } else {
@@ -169,17 +171,33 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
     }
   } else {  // normal robot mode
     digitalWrite(headPin, HIGH);
+    if (headMode) {
+      angle = 0;  // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
+      command_motors(0, 0);
+      for (int i = 0; i <= 3; i++) {
+        digitalWrite(headPin, LOW);
+        delay(200);
+        digitalWrite(headPin, HIGH);
+        delay(200);
+      }
+    }
+
     left_sig = slip + trans;
     right_sig = -slip + trans;
   }
 
+  command_motors(left_sig, right_sig);
+}
+
+void command_motors(int left, int right) {
+
   // this has to be just before motor drive the rest of the loop!
-  if (stopflag){
-    right_sig = 0;
-    left_sig = 0;
+  if (stopflag) {
+    right = 0;
+    left = 0;
   }
-  motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right_sig));
-  motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left_sig));
+  motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left));
+  motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right));
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry
@@ -191,27 +209,27 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
   before = now;
   // finished loop time measurement
 
-  if (xl.newXData()) {
-    int16_t x, y, z;
-    xl.readAxes(x, y, z);
-    // Serial.println(x);
-    // Serial.println(y);
-    x = x + xoff;
-    y = y + yoff;
-    // Serial.println(x);
-    // Serial.println(y);
-    float xg = xl.convertToG(200, x);
-    float yg = xl.convertToG(200, y);
+  float gyrorot = abs(get_spin());
 
-    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
+  if (gyrorot < 1800) {  // if under 300rpm, use gyro
+    zrotspd = gyrorot;
+  } else {
+    if (xl.newXData()) {
+      int16_t x, y, z;
+      xl.readAxes(x, y, z);
+      x = x + xoff;
+      y = y + yoff;
+      float xg = xl.convertToG(200, x);
+      float yg = xl.convertToG(200, y);
 
-    // FILTER ACCEL
-    float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
-    prev_filt_val = filtered_accel;
+      float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
 
-    zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
+      // FILTER ACCEL
+      float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
+      prev_filt_val = filtered_accel;
 
-    Serial.println(zrotspd / 6);
+      zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
+    }
   }
 
 
@@ -228,9 +246,10 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
   // Telemetry stuff
   static unsigned long lastGpsUpdate = 0;
   if (now - lastGpsUpdate >= 500000) {
+    Serial.println(zrot / 6);
     lastGpsUpdate = now;
     // Update the GPS telemetry data with the new values.
-    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, 0, 0);
+    crsf.telemetryWriteGPS(0, 0, zrot * 6000 / 360, 0, accel_rad * 100 * correct, 0);
   }
 }
 
@@ -277,21 +296,34 @@ float oneshot_Duty(int thoucentage) {  // function to turn thoucentages into one
 }
 
 
-void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics)
-{
-    /* Here is where you can read out the link statistics.
+void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
+  /* Here is where you can read out the link statistics.
     You have access to the following data:
     - RSSI (dBm)
     - Link Quality (%)
     - Signal-to-Noise Ratio (dBm)
     - Transmitter Power (mW) */
-    int lqi = linkStatistics.lqi;
-    if (lqi < 10){
-      stopflag = true;
-      Serial.println(lqi);
-    } else {
-      stopflag = false;
-    }
+  int lqi = linkStatistics.lqi;
+  if (lqi < 10) {
+    stopflag = true;
+    Serial.println(lqi);
+  } else {
+    stopflag = false;
+  }
+}
 
+float get_spin() {
+  static float spin = 0;
 
+  if (!IMU.gyroscopeAvailable()) {
+    return spin;  // return last spin measurement if new reading not available so as to not hold up main loop
+  }
+  float x, y, z;
+  IMU.readGyroscope(x, y, z);
+  float spin_measure = hypot(x, y, z) * constrain(z, -1, 1);
+  if (spin_measure < 9999) {  // occasionally the IMU reads inf... not sure why but this seems to catch it
+    spin = spin_measure * gyro_fudge;
+  }
+
+  return spin;
 }
