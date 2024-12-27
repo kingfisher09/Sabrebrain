@@ -3,6 +3,7 @@
 #include <Servo.h>
 #include "SparkFun_LIS331.h"
 #include <Wire.h>
+#include <Adafruit_NeoPixel.h>  //needed for RGB LED
 
 LIS331 xl;
 CRSFforArduino crsf = CRSFforArduino(&Serial1);
@@ -18,25 +19,30 @@ int cutoff = 0;      // for handling of spinner (making it run straight)
 int oneshot_Freq = 3500;
 int lightWidth = 15;
 int speed_int = 300;  // miliseconds between speed measurements
-int head_delay = -120;
-float correct_max = -0.05;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
-const float gyro_fudge = 1.145;
+int head_delay = -150;
+float correct_max = -0.25;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
+const float gyro_fudge = 1;
 
 // Robot stuff
-const float accel_rad = 70.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 50.0 / 1000.0;  // input in mm, outputs m
 
 // pins
-const int MOTOR_RIGHT_PIN = 25;
-const int MOTOR_LEFT_PIN = 15;
-const int headPin = 16;  // LED heading pin
-const int ledPin = LED_BUILTIN;
-const int accel_pow = 6;
+const int MOTOR_RIGHT_PIN = 4;
+const int MOTOR_LEFT_PIN = 3;
+const int WEP_MOTOR_PIN = 27;
+const int headPin = 2;  // LED heading pin
+const int ledPin = 11;
+#define NUMPIXELS 1
+
+Adafruit_NeoPixel pixels(NUMPIXELS, 12, NEO_GRB + NEO_KHZ800);
+const int accel_pow = 26;
 
 // motors
 RP2040_PWM *motor_Right;
 RP2040_PWM *motor_Left;
 float oneshot_Duty(int thoucentage);
 void command_motors(int left, int right);
+Servo wep_motor;
 
 // RF stuff
 // note channel 5 is used for shutdown so not in the list
@@ -46,6 +52,9 @@ const int SPIN_CH = 3;
 const int HEAD_CH = 4;
 const int CORRECT_CH = 6;
 const int HEAD_MODE_CH = 7;
+const int WEP_MODE_CH = 8;
+const int WEP_LIM = 9;
+
 bool stopflag = false;
 
 int powerCurve(int x);
@@ -57,6 +66,8 @@ float trans = 0;
 float head = 0;
 float spin = 0;
 float correct = 1;
+int wepMode = 0;
+bool wep = false;
 
 // rotation tracking
 float angle = 0;
@@ -77,7 +88,9 @@ float prev_filt_val = 0;
 void setup() {
   // put your setup code here, to run once:
   // Initialise CRSF for Arduino.
-
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("Thread 0 starting...");
   if (!crsf.begin()) {
     Serial.println("CRSF for Arduino initialisation failed!");
     while (1) {
@@ -90,17 +103,22 @@ void setup() {
 
   pinMode(headPin, OUTPUT);
   pinMode(ledPin, OUTPUT);
+
+  // PowerLED stuff
+  pixels.begin();
+  digitalWrite(ledPin, HIGH);
+
   // initialise motors
-  Serial.begin(115200);
   motor_Right = new RP2040_PWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(0));
   motor_Left = new RP2040_PWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(0));
+  wep_motor.attach(WEP_MOTOR_PIN);
+  wep_motor.writeMicroseconds(1500);
   Serial.println("Thread 0 started");
   delay(1000);  // wait for ESCs to start up
 }
 
 void setup1() {
   Wire.begin();
-
   // Reset accelerometer
   pinMode(accel_pow, OUTPUT);
   digitalWrite(accel_pow, LOW);
@@ -114,7 +132,7 @@ void setup1() {
 
   while (!accel_active) {
     xl.begin(LIS331::USE_I2C);
-    xl.setFullScale(LIS331::MED_RANGE);
+    xl.setFullScale(LIS331::HIGH_RANGE);
     xl.setODR(LIS331::DR_1000HZ);
     delay(100);
     if (xl.newXData()) {
@@ -139,7 +157,13 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
   head = servoTothoucentage(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * correct_max) + 1;
   bool headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
-
+  int wepIn = crsf.rcToUs(crsf.getChannel(WEP_MODE_CH));
+  int wepMode = (wepIn < 1250) ? 0 : ((wepIn <= 1750) ? 1 : 2);  // inline if statement that selects weapon mode based on channel value
+  int wep_lim = map(crsf.rcToUs(crsf.getChannel(WEP_LIM)), 1000, 2000, 1500, 2000);
+  if (stopflag) {
+    wep_lim = 1500;
+  }
+  static int old_wepMode = 4;
 
   int left_sig, right_sig;
 
@@ -163,6 +187,11 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       left_sig = spin;
       right_sig = -spin;
     }
+
+    if (wepMode == 1) {                      // start weapon if spinning and in wepmode 2
+      wep_motor.writeMicroseconds(wep_lim);  // weapon on
+    }
+
   } else {  // normal robot mode
     digitalWrite(headPin, HIGH);
     if (headMode) {
@@ -176,12 +205,44 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       }
     }
 
+    // normal driving
     left_sig = slip + trans;
     right_sig = -slip + trans;
+
+    if (wepMode != 2) {
+      wep_motor.writeMicroseconds(1500);  // weapon off
+    }
   }
 
   command_motors(left_sig, right_sig);
+
+  if (old_wepMode != wepMode) {
+    pixels.clear();
+  }
+
+  switch (wepMode) {
+    case 1:
+      // "Auto mode", Weapon not started here, started above in spin code
+      wep_motor.writeMicroseconds(1500);  // needed here to turn weapon off when switching from case 2
+      pixels.setPixelColor(0, pixels.Color(200, 0, 255));
+      break;
+
+    case 2:
+      wep_motor.writeMicroseconds(wep_lim);  // weapon on
+      pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+      break;
+
+    default:
+      wep_motor.writeMicroseconds(1500);  // weapon off
+      pixels.setPixelColor(0, pixels.Color(12, 66, 101));
+      break;
+
+      pixels.show();
+  }
+
+  old_wepMode = wepMode;
 }
+
 
 void command_motors(int left, int right) {
 
@@ -250,7 +311,7 @@ int powerCurve(int x) {
 }
 
 float servoTothoucentage(int servoSignal, int stickmode) {
-  // Map the servo signal to the range of -100 to +100, provide deazone = 1 for a channel with 1000 being default, deazone 2 for 1500 default
+  // Map the servo signal to the range of -1000 to +1000, provide deazone = 1 for a channel with 1000 being default, deazone 2 for 1500 default
   int lower;
   if (stickmode == 0) {  // deadzones
     lower = 0;
