@@ -1,6 +1,5 @@
 #include "CRSFforArduino.hpp"
 #include "RP2040_PWM.h"
-#include <Servo.h>
 #include "SparkFun_LIS331.h"
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>  //needed for RGB LED
@@ -19,17 +18,17 @@ int cutoff = 0;      // for handling of spinner (making it run straight)
 int oneshot_Freq = 3500;
 int lightWidth = 15;
 int speed_int = 300;  // miliseconds between speed measurements
-int head_delay = -150;
-float correct_max = -0.25;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
+int head_delay = 0;
+float correct_max = -0.1;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
 const float gyro_fudge = 1;
+int min_drive = 50;
 
 // Robot stuff
-const float accel_rad = 50.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 42.0 / 1000.0;  // input in mm, outputs m
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
 const int MOTOR_LEFT_PIN = 3;
-const int WEP_MOTOR_PIN = 27;
 const int headPin = 2;  // LED heading pin
 const int ledPin = 11;
 #define NUMPIXELS 1
@@ -42,7 +41,6 @@ RP2040_PWM *motor_Right;
 RP2040_PWM *motor_Left;
 float oneshot_Duty(int thoucentage);
 void command_motors(int left, int right);
-Servo wep_motor;
 
 // RF stuff
 // note channel 5 is used for shutdown so not in the list
@@ -52,8 +50,7 @@ const int SPIN_CH = 3;
 const int HEAD_CH = 4;
 const int CORRECT_CH = 6;
 const int HEAD_MODE_CH = 7;
-const int WEP_MODE_CH = 8;
-const int WEP_LIM = 9;
+const int DIR_CH = 8;
 
 bool stopflag = false;
 
@@ -66,7 +63,6 @@ float trans = 0;
 float head = 0;
 float spin = 0;
 float correct = 1;
-int wepMode = 0;
 bool wep = false;
 
 // rotation tracking
@@ -78,7 +74,7 @@ int16_t zoff = 0;
 float get_spin();
 
 // filter settings
-float x = 0.15;
+float x = 0.3;
 float a0 = 1 - x;
 float b1 = x;
 
@@ -111,8 +107,6 @@ void setup() {
   // initialise motors
   motor_Right = new RP2040_PWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(0));
   motor_Left = new RP2040_PWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(0));
-  wep_motor.attach(WEP_MOTOR_PIN);
-  wep_motor.writeMicroseconds(1500);
   Serial.println("Thread 0 started");
   delay(1000);  // wait for ESCs to start up
 }
@@ -157,26 +151,21 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
   head = servoTothoucentage(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * correct_max) + 1;
   bool headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
-  int wepIn = crsf.rcToUs(crsf.getChannel(WEP_MODE_CH));
-  int wepMode = (wepIn < 1250) ? 0 : ((wepIn <= 1750) ? 1 : 2);  // inline if statement that selects weapon mode based on channel value
-  int wep_lim = map(crsf.rcToUs(crsf.getChannel(WEP_LIM)), 1000, 2000, 1500, 2000);
-  if (stopflag) {
-    wep_lim = 1500;
-  }
-  static int old_wepMode = 4;
+  int dir_in = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -10, 30);
+  head_delay = dir_in;
 
   int left_sig, right_sig;
 
   // robot control modes
   if (spin > 0) {  // spinning mode
-    if (!headMode) {
+    if (!headMode) {  // spinning mode
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
       float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
       // spin = spin + delta > 1000 ? 1000 - trans : spin;  // reduce spin speed if delta would push them over 1000, removed for now as not really needed
       left_sig = spin + delta;
       right_sig = -spin + delta;
-    } else {
+    } else {  // heading correct mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
       if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
         head_change = degrees(atan2(-slip, trans));
@@ -188,12 +177,9 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       right_sig = -spin;
     }
 
-    if (wepMode == 1) {                      // start weapon if spinning and in wepmode 2
-      wep_motor.writeMicroseconds(wep_lim);  // weapon on
-    }
-
   } else {  // normal robot mode
     digitalWrite(headPin, HIGH);
+    slip = slip * 0.1;
     if (headMode) {
       angle = 0;  // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
       command_motors(0, 0);
@@ -205,42 +191,14 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       }
     }
 
-    // normal driving
+    // normal driving with minimum motor speed
     left_sig = slip + trans;
+    left_sig = (abs(left_sig) < min_drive) ? 0 : left_sig;
     right_sig = -slip + trans;
-
-    if (wepMode != 2) {
-      wep_motor.writeMicroseconds(1500);  // weapon off
-    }
+    right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
   command_motors(left_sig, right_sig);
-
-  if (old_wepMode != wepMode) {
-    pixels.clear();
-  }
-
-  switch (wepMode) {
-    case 1:
-      // "Auto mode", Weapon not started here, started above in spin code
-      wep_motor.writeMicroseconds(1500);  // needed here to turn weapon off when switching from case 2
-      pixels.setPixelColor(0, pixels.Color(200, 0, 255));
-      break;
-
-    case 2:
-      wep_motor.writeMicroseconds(wep_lim);  // weapon on
-      pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-      break;
-
-    default:
-      wep_motor.writeMicroseconds(1500);  // weapon off
-      pixels.setPixelColor(0, pixels.Color(12, 66, 101));
-      break;
-
-      pixels.show();
-  }
-
-  old_wepMode = wepMode;
 }
 
 
@@ -300,7 +258,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
     Serial.println(zrot / 6);
     lastGpsUpdate = now;
     // Update the GPS telemetry data with the new values.
-    crsf.telemetryWriteGPS(0, 0, zrot * 6000 / 360, 0, accel_rad * 100 * correct, 0);
+    crsf.telemetryWriteGPS(0, head_delay, zrot * 6000 / 360, 0, accel_rad * 100 * correct, 0);
   }
 }
 
