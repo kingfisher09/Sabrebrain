@@ -5,24 +5,61 @@
 // Create an instance of the LSM6DS3 class
 LSM6DS3 myIMU(I2C_MODE, 0x6A);  // I2C device address 0x6A
 
+const int ledPin = LED_BUILTIN;
+const int headPin = 9;
+
+// slipChan = 2;
+// transChan = 3;
+// spinChan = 4;
+// headChan = 5;
+
+int slipSig = 1500;  // need to implement this!
+
 float rotationSum = 0;
-int lightWidth = 10;
+int lightWidth = 15;
+
+unsigned long before = millis();
 
 Servo Right_Motor;
 Servo Left_Motor;
-int angle = 0;
-int speed_command = 0; //out of 1000
-int translate = 0; //out of 1000
+float angle = 0;
+
+int nextChan = 2;
+int spin_command = 0;  //out of 1000
+int translate = 0;     //out of 1000
+float headChange = 0;
 int cutoff = 0;
 
 const int SERVO_MIN = 1000;  // Minimum servo signal
 const int SERVO_MAX = 2000;  // Maximum servo signal
 
-const int ledPin = LED_BUILTIN;
-const int headPin = 10;
+void read_chans() {  // cycles through the 4 channels reading updating a different one each tim it is called
 
-const int transpin = 5;
-const int speedpin = 4;
+  int readSig = pulseIn(nextChan, HIGH, 10000);
+
+  if (readSig == 0) {  // if a wire comes unplugged stop!
+    Left_Motor.writeMicroseconds(1500);
+    Right_Motor.writeMicroseconds(1500);
+    digitalWrite(LED_BUILTIN, LOW);
+    while (true) {
+      delay(1000);
+    }
+  }
+
+  if (nextChan == 2) {
+    slipSig = readSig;
+    nextChan = 3;
+  } else if (nextChan == 3) {
+    translate = servoTothoucentage(readSig);
+    nextChan = 4;
+  } else if (nextChan == 4) {
+    spin_command = map(readSig, SERVO_MIN, SERVO_MAX, 0, 1000);
+    nextChan = 5;
+  } else if (nextChan == 5) {
+    headChange = map(readSig, SERVO_MIN, SERVO_MAX, -2, 2);
+    nextChan = 2;
+  }
+}
 
 float servoTothoucentage(int servoSignal) {
   // Map the servo signal to the range of -100 to +100
@@ -40,31 +77,56 @@ void setup() {
   Right_Motor.writeMicroseconds(1500);  // Corrected the typo here
   Left_Motor.attach(1);
   Left_Motor.writeMicroseconds(1500);
+
   pinMode(ledPin, OUTPUT);
   pinMode(headPin, OUTPUT);
+
   Serial.begin(9600);
   Serial.println("Starting up");
+  digitalWrite(headPin, HIGH);
   delay(5000);
+  digitalWrite(headPin, LOW);
+
+
+  // Call .begin() to configure the IMU
+  if (myIMU.begin() != 0) {
+    Serial.println("Device error");
+  } else {
+    Serial.println("Device OK!");
+  }
 }
 
 void loop() {
-  int before = micros();
-  translate = servoTothoucentage(pulseIn(transpin, HIGH));
-  speed_command = map(pulseIn(speedpin, HIGH), SERVO_MIN, SERVO_MAX, 0, 1000);
-  int speed = speed_command + translate > 1000 ? 1000 - translate : speed_command;
+  read_chans();
+  float looptime = static_cast<float>(millis() - before);
+
+  before = millis();  // for measuring looptime
+
+  float zrotReading = myIMU.readFloatGyroZ() + 0.07;
+  angle = fmod(angle + (zrotReading * looptime / 1000) + 360 + headChange, 360);  // will not work if rotate more than 360° negative per loop
+
+  Serial.print("Looptime: ");
+  Serial.println(looptime);
+  Serial.println(angle);
+
+  if (angle < lightWidth || angle > (360 - lightWidth)) {  // check whether to flash heading LED
+    digitalWrite(headPin, HIGH);
+  } else {
+    digitalWrite(headPin, LOW);
+  }
+
+
+  int spin = spin_command + translate > 1000 ? 1000 - translate : spin_command;
   float cosresult = cos(radians(angle));
   float delta = translate * (abs(cosresult) > cutoff ? cosresult : 0);
 
-  int left_sig = thoucentageToServo(speed + delta);
-  int right_sig = thoucentageToServo(-speed + delta);
+  int left_sig = thoucentageToServo(spin + delta);
+  int right_sig = thoucentageToServo(-spin + delta);
+  Serial.print("Right motor:");
+  Serial.print(right_sig);
+  Serial.print(" Left motor: ");
+  Serial.println(left_sig);
+
   Left_Motor.writeMicroseconds(left_sig);
   Right_Motor.writeMicroseconds(right_sig);
-
-
-
-  angle = angle + 1;  // only used in this testing phase
-  if (angle == 360) {
-    angle = 0;
-  }
-
 }
