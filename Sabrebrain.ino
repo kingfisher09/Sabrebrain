@@ -2,7 +2,6 @@
 #include "RP2040_PWM.h"
 #include <Servo.h>
 #include "SparkFun_LIS331.h"
-#include <Arduino_LSM6DSOX.h>  // 2040 connect gyro
 #include <Wire.h>
 
 LIS331 xl;
@@ -126,11 +125,6 @@ void setup1() {
     }
   }
 
-  while (!IMU.begin()) {
-    Serial.println("Failed to initialize IMU!");
-    delay(1000);
-  }
-
   Serial.println("Thread 1 started");
   xoff = 10;
   yoff = 10;
@@ -209,28 +203,24 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
   before = now;
   // finished loop time measurement
 
-  float gyrorot = abs(get_spin());
 
-  if (gyrorot < 1800) {  // if under 300rpm, use gyro
-    zrotspd = gyrorot;
-  } else {
-    if (xl.newXData()) {
-      int16_t x, y, z;
-      xl.readAxes(x, y, z);
-      x = x + xoff;
-      y = y + yoff;
-      float xg = xl.convertToG(200, x);
-      float yg = xl.convertToG(200, y);
+  if (xl.newXData()) {
+    int16_t x, y, z;
+    xl.readAxes(x, y, z);
+    x = x + xoff;
+    y = y + yoff;
+    float xg = xl.convertToG(200, x);
+    float yg = xl.convertToG(200, y);
 
-      float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
+    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
 
-      // FILTER ACCEL
-      float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
-      prev_filt_val = filtered_accel;
+    // FILTER ACCEL
+    float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
+    prev_filt_val = filtered_accel;
 
-      zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
-    }
+    zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
   }
+
 
 
   float zrot = zrotspd - (head / 3);                             // injecting head in here allows us to get a specific degrees/s
@@ -310,20 +300,4 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistic
   } else {
     stopflag = false;
   }
-}
-
-float get_spin() {
-  static float spin = 0;
-
-  if (!IMU.gyroscopeAvailable()) {
-    return spin;  // return last spin measurement if new reading not available so as to not hold up main loop
-  }
-  float x, y, z;
-  IMU.readGyroscope(x, y, z);
-  float spin_measure = hypot(x, y, z) * constrain(z, -1, 1);
-  if (spin_measure < 9999) {  // occasionally the IMU reads inf... not sure why but this seems to catch it
-    spin = spin_measure * gyro_fudge;
-  }
-
-  return spin;
 }
