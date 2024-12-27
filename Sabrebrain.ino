@@ -1,8 +1,15 @@
 #include "CRSFforArduino.hpp"
 #include "RP2040_PWM.h"
 #include <Servo.h>
+#include "SparkFun_LIS331.h"
+#include <Wire.h>
 
+LIS331 xl;
 CRSFforArduino crsf = CRSFforArduino(&Serial1);
+
+
+/* This needs to be up here, to prevent compiler warnings. */
+void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 
 // settings
 int deadzone = 30;
@@ -11,21 +18,18 @@ int cutoff = 0;      // for handling of spinner (making it run straight)
 int oneshot_Freq = 3500;
 int lightWidth = 15;
 int speed_int = 300;  // miliseconds between speed measurements
-int head_delay = 0;
-float correct_max = 0.8;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
+int head_delay = -120;
+float correct_max = -0.1;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
 
 // Robot stuff
-const int wheel_dia = 50;      // mm
-float wheel_pos_dia = 83 * 2;  // mm
-const int max_rps = 3.8 * 4 * 330 / 60;
-// max wheel speed given by max_rps * wheel_dia / wheel_pos_dia
+const float accel_rad = 75.0 / 1000.0;  // input in mm, outputs m
 
 // pins
-const int MOTOR_RIGHT_PIN = 15;
-const int MOTOR_LEFT_PIN = 25;
-const int headPin = 5;  // LED heading pin
+const int MOTOR_RIGHT_PIN = 25;
+const int MOTOR_LEFT_PIN = 15;
+const int headPin = 16;  // LED heading pin
 const int ledPin = LED_BUILTIN;
-const int ServoPin = 0;  // this needs to be decided
+const int accel_pow = 6;
 
 // motors
 RP2040_PWM *motor_Right;
@@ -40,6 +44,7 @@ const int SPIN_CH = 3;
 const int HEAD_CH = 4;
 const int CORRECT_CH = 6;
 const int HEAD_MODE_CH = 7;
+bool stopflag = false;
 
 int powerCurve(int x);
 float servoTothoucentage(int servoSignal, int stickmode);
@@ -53,7 +58,17 @@ float correct = 1;
 
 // rotation tracking
 float angle = 0;
-bool pauseflag = false;
+float zrotspd = 0;
+int16_t xoff = 0;
+int16_t yoff = 0;
+int16_t zoff = 0;
+
+// filter settings
+float x = 0.15;
+float a0 = 1 - x;
+float b1 = x;
+
+float prev_filt_val = 0;
 
 
 void setup() {
@@ -67,6 +82,9 @@ void setup() {
     }
   }
 
+  /* Set your link statistics callback. */
+  crsf.setLinkStatisticsCallback(onLinkStatisticsUpdate);
+
   pinMode(headPin, OUTPUT);
   pinMode(ledPin, OUTPUT);
   // initialise motors
@@ -74,11 +92,46 @@ void setup() {
   motor_Right = new RP2040_PWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(0));
   motor_Left = new RP2040_PWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(0));
   Serial.println("Thread 0 started");
-  delay(3000);  // wait for ESCs to start up
+  delay(1000);  // wait for ESCs to start up
 }
 
 void setup1() {
+  Wire.begin();
+
+  // Reset accelerometer
+  pinMode(accel_pow, OUTPUT);
+  digitalWrite(accel_pow, LOW);
+  delay(1000);
+  digitalWrite(accel_pow, HIGH);
+  Serial.println("Accel has power");
+
+  // Set up accel
+  xl.setI2CAddr(0x19);  // This MUST be called BEFORE .begin() so begin() can communicate with the chip
+  bool accel_active = false;
+
+  while (!accel_active) {
+    xl.begin(LIS331::USE_I2C);
+    xl.setFullScale(LIS331::MED_RANGE);
+    xl.setODR(LIS331::DR_1000HZ);
+    delay(100);
+    if (xl.newXData()) {
+      accel_active = true;
+    } else {
+      delay(1000);
+      Serial.println("Accel begin failed, trying again");
+    }
+  }
+
   Serial.println("Thread 1 started");
+  // int16_t x, y, z;
+  // xl.readAxes(x, y, z);
+  xoff = 10;
+  yoff = 10;
+  // zoff = 0;
+  // Serial.println("Offsets:");
+  // Serial.println(xoff);
+  // Serial.println(xoff);
+  // delay(3000);
 }
 
 void loop() {  // Loop 0 handles crsf receive and motor commands
@@ -90,19 +143,17 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
   head = servoTothoucentage(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * correct_max) + 1;
   bool headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
+  
 
   int left_sig, right_sig;
 
   // robot control modes
   if (spin > 0) {  // spinning mode
-    if (pauseflag) {
-      left_sig = slip + trans;
-      right_sig = -slip + trans;
-    } else if (!headMode) {
+    if (!headMode) {
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
-      float delta = (trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));
-      spin = spin + delta > 1000 ? 1000 - trans : spin;  // reduce spin speed if delta would push them over 1000
+      float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
+      spin = spin + delta > 1000 ? 1000 - trans : spin;                                                                         // reduce spin speed if delta would push them over 1000
       left_sig = spin + delta;
       right_sig = -spin + delta;
     } else {
@@ -110,7 +161,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
         head_change = degrees(atan2(-slip, trans));
       } else {
-        angle = angle + head_change;
+        angle = angle - head_change;
         head_change = 0;
       }
       left_sig = spin;
@@ -121,11 +172,17 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
     left_sig = slip + trans;
     right_sig = -slip + trans;
   }
+
+  // this has to be just before motor drive the rest of the loop!
+  if (stopflag){
+    right_sig = 0;
+    left_sig = 0;
+  }
   motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right_sig));
   motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left_sig));
 }
 
-void loop1() {  // Loop 1 handles speed calculation
+void loop1() {  // Loop 1 handles speed calculation and telemetry
 
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
   static unsigned long before = 0;  // only runs first loop because static
@@ -134,10 +191,31 @@ void loop1() {  // Loop 1 handles speed calculation
   before = now;
   // finished loop time measurement
 
-  float zrotCalc = spin * correct * max_rps * 360 * wheel_dia / (wheel_pos_dia * 1000);  // deg/s
-  Serial.println(spin * max_rps * 60/ 1000);
+  if (xl.newXData()) {
+    int16_t x, y, z;
+    xl.readAxes(x, y, z);
+    // Serial.println(x);
+    // Serial.println(y);
+    x = x + xoff;
+    y = y + yoff;
+    // Serial.println(x);
+    // Serial.println(y);
+    float xg = xl.convertToG(200, x);
+    float yg = xl.convertToG(200, y);
 
-  float zrot = zrotCalc + (head / 3);                            // injecting head in here allows us to get a specific degrees/s
+    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
+
+    // FILTER ACCEL
+    float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
+    prev_filt_val = filtered_accel;
+
+    zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
+
+    Serial.println(zrotspd / 6);
+  }
+
+
+  float zrot = zrotspd - (head / 3);                             // injecting head in here allows us to get a specific degrees/s
   angle = fmod(angle + (zrot * looptime / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
 
 
@@ -147,12 +225,12 @@ void loop1() {  // Loop 1 handles speed calculation
     digitalWrite(headPin, LOW);
   }
 
-
+  // Telemetry stuff
   static unsigned long lastGpsUpdate = 0;
   if (now - lastGpsUpdate >= 500000) {
     lastGpsUpdate = now;
     // Update the GPS telemetry data with the new values.
-    crsf.telemetryWriteGPS(0, 0, zrotCalc * 6000 / 360, 0, 0, 0);
+    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, 0, 0);
   }
 }
 
@@ -198,31 +276,22 @@ float oneshot_Duty(int thoucentage) {  // function to turn thoucentages into one
   return dut;
 }
 
-// float readTelemRPM() {
-//   if (Serial1.available() >= 10) {  // Check if all 10 bytes are available
-//     // Read the 10 bytes from the serial buffer
-//     byte temperature = Serial1.read();
-//     byte voltageHigh = Serial1.read();
-//     byte voltageLow = Serial1.read();
-//     byte currentHigh = Serial1.read();
-//     byte currentLow = Serial1.read();
-//     byte consumptionHigh = Serial1.read();
-//     byte consumptionLow = Serial1.read();
-//     byte rpmHigh = Serial1.read();
-//     byte rpmLow = Serial1.read();
-//     byte crc = Serial1.read();
 
-//     // Combine high and low bytes to reconstruct values
-//     int voltage = (voltageHigh << 8) | voltageLow;
-//     int current = (currentHigh << 8) | currentLow;
-//     int consumption = (consumptionHigh << 8) | consumptionLow;
-//     int rpm = (rpmHigh << 8) | rpmLow;
-
-//     // Print the parsed values to the Serial Monitor
-
-//     float readRPM = rpm * 8.3333;
+void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics)
+{
+    /* Here is where you can read out the link statistics.
+    You have access to the following data:
+    - RSSI (dBm)
+    - Link Quality (%)
+    - Signal-to-Noise Ratio (dBm)
+    - Transmitter Power (mW) */
+    int lqi = linkStatistics.lqi;
+    if (lqi < 10){
+      stopflag = true;
+      Serial.println(lqi);
+    } else {
+      stopflag = false;
+    }
 
 
-//     // Optionally, you can perform CRC validation here
-//   }
-// }
+}
