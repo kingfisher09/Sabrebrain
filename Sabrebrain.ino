@@ -20,7 +20,6 @@ int lightWidth = 15;
 int speed_int = 300;  // miliseconds between speed measurements
 int head_delay = 0;
 float correct_max = -0.1;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
-const float gyro_fudge = 1;
 int min_drive = 50;
 
 // Robot stuff
