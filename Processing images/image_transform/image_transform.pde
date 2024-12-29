@@ -23,7 +23,7 @@ void draw() {
   image(rectGraphic, 0, 0);
 
   // Draw the polar-transformed graphic on the right
-  image(polarGraphic, 500, 0);
+  image(polarGraphic, canvas_size, 0);
 }
 
 void createRectGraphic() {
@@ -44,14 +44,10 @@ void createRectGraphic() {
 
 void createPolarGraphic() {
   polarGraphic.beginDraw();
-  polarGraphic.background(0);
+  polarGraphic.background(255);
 
   polarGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
 
-  rectGraphic.loadPixels();
-  //polarGraphic.loadPixels();
-
-//print(rectGraphic.pixels[50]);
 
   for (int a = 0; a < numAngles; a++) {
     float theta = map(a, 0, numAngles, 0, TWO_PI); // Map index to angle (0 to 2π)
@@ -60,31 +56,15 @@ void createPolarGraphic() {
 
       int x = int(min(radius * sin(theta), canvas_size - 1)); // lock max value to the size of the pixel array
       int y = int(min(radius * cos(theta), canvas_size - 1)); // lock max value to the size of the pixel array
-      
-      print(x);
-      print(" ");
-      print(y);
-      print(", ");
-      int pixelColor = rectGraphic.pixels[x + y];
+
+      color colour = rectGraphic.get(x + canv_centre, y + canv_centre);
+
+      if (red(colour) + green(colour) + blue(colour) > 0) {
+        polarGraphic.fill(colour);
+        polarGraphic.noStroke();
+        polarGraphic.ellipse(x, y, 12, 12);
+      }
     }
   }
-
-  //for (int x = 0; x < rectGraphic.width; x++) {
-  //  for (int y = 0; y < rectGraphic.height; y++) {
-  //    int pixelColor = rectGraphic.pixels[x + y * rectGraphic.width];
-
-  //    // Map (x, y) to polar coordinates
-  //    float angle = map(x, 0, rectGraphic.width, 0, TWO_PI);
-  //    float r = map(y, 0, rectGraphic.height, 0, radius);
-
-  //    int polarX = (int)(centerX + r * cos(angle));
-  //    int polarY = (int)(centerY + r * sin(angle));
-
-  //    if (polarX >= 0 && polarX < polarGraphic.width && polarY >= 0 && polarY < polarGraphic.height) {
-  //      polarGraphic.pixels[polarX + polarY * polarGraphic.width] = pixelColor;
-  //    }
-  //  }
+  polarGraphic.endDraw();
 }
-
-//polarGraphic.updatePixels();
-//polarGraphic.endDraw();
