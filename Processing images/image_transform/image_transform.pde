@@ -30,21 +30,20 @@ void createRectGraphic() {
   rectGraphic.beginDraw();
   rectGraphic.background(0);
   rectGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
+  rectGraphic.rotate(PI);
 
-  // Draw some shapes (example graphic)
-  rectGraphic.fill(255, 0, 0);
-  rectGraphic.rectMode(CENTER);
-  rectGraphic.rect(0, 0, 200, 200);
-
-  rectGraphic.fill(0, 0, 255);
-  rectGraphic.ellipse(0, 0, 100, 100);
-
+  wrapText("SABRETOOTH", 132, color(255, 0, 0));
+  //wrapText("HE HE HE", 165, color(0, 255, 0));
+  draw_outer_ring();  
+  //draw_white_flash();  
+  draw_pointer_arrow();
+  draw_image();
   rectGraphic.endDraw();
 }
 
 void createPolarGraphic() {
   polarGraphic.beginDraw();
-  polarGraphic.background(255);
+  polarGraphic.background(0);
 
   polarGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
 
@@ -62,9 +61,42 @@ void createPolarGraphic() {
       if (red(colour) + green(colour) + blue(colour) > 0) {
         polarGraphic.fill(colour);
         polarGraphic.noStroke();
-        polarGraphic.ellipse(x, y, 12, 12);
+        polarGraphic.ellipse(x, y, 6, 6);
       }
     }
   }
   polarGraphic.endDraw();
+}
+
+
+void wrapText(String txt, float start_angle, color text_col) {
+  float angleStep = radians(30);
+  float radius = 130;
+  
+  PFont boldFont;
+  String fontlink = "C:\\WINDOWS\\FONTS\\BRLNSR.TTF";
+  boldFont = createFont(fontlink, 120); // Load the bold font from the data folder
+  rectGraphic.textFont(boldFont);
+  rectGraphic.fill(text_col);
+
+  for (int i = 0; i < txt.length(); i++) {
+    char letter = txt.charAt(i);
+    float angle = radians(start_angle) + angleStep * i; // Adjust for starting position at the top
+
+    // Calculate position on the circle
+    float x = cos(angle) * radius;
+    float y = sin(angle) * radius;
+
+    // Save current transformation state
+    rectGraphic.pushMatrix();
+
+    // Translate and rotate to align text with curve
+    rectGraphic.textAlign(CENTER);
+    rectGraphic.translate(x, y);
+    rectGraphic.rotate(angle + HALF_PI); // Rotate to align with tangent
+    rectGraphic.text(letter, 0, 0); // Draw character
+
+    // Restore transformation state
+    rectGraphic.popMatrix();
+  }
 }
