@@ -6,6 +6,7 @@ PGraphics rectGraphic; // For the rectangular graphic
 PGraphics polarGraphic; // For the polar-transformed graphic
 int canvas_size = 500;
 int canv_centre = canvas_size/2;
+byte[] output_array = {};
 
 void setup() {
   size(1000, 500); // One window, split into two halves
@@ -14,6 +15,7 @@ void setup() {
 
   createRectGraphic();
   createPolarGraphic();
+  savePolarPoints();
 }
 
 void draw() {
@@ -32,12 +34,12 @@ void createRectGraphic() {
   rectGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
   rectGraphic.rotate(PI);
 
-  wrapText("SABRETOOTH", 132, color(255, 0, 0));
-  //wrapText("HE HE HE", 165, color(0, 255, 0));
-  draw_outer_ring();  
-  //draw_white_flash();  
+  //wrapText("SABRETOOTH", 132, color(255, 0, 0));
+  wrapText("HE HE HE", 165, color(0, 255, 0));
+  draw_outer_ring();
+  draw_white_flash();
   draw_pointer_arrow();
-  draw_image();
+  //draw_image();
   rectGraphic.endDraw();
 }
 
@@ -47,32 +49,56 @@ void createPolarGraphic() {
 
   polarGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
 
-
+  boolean saved_centre = false;
   for (int a = 0; a < numAngles; a++) {
     float theta = map(a, 0, numAngles, 0, TWO_PI); // Map index to angle (0 to 2π)
-    for (int r = 0; r < numRadii; r++) {
+    int startR = (!saved_centre) ? 0 : 1;  // only save centre pixel once, not at every angle
+    for (int r = startR; r < numRadii; r++) {
       float radius = map(r, 0, numRadii, 0, canvas_size / 2); // Map index to radius (center to edge)
 
       int x = int(min(radius * sin(theta), canvas_size - 1)); // lock max value to the size of the pixel array
       int y = int(min(radius * cos(theta), canvas_size - 1)); // lock max value to the size of the pixel array
 
       color colour = rectGraphic.get(x + canv_centre, y + canv_centre);
+      int R = min(round((red(colour)+1)/32), 7);
+      int G = min(round((green(colour)+1)/32), 7);
+      int B = min(round((blue(colour)+1)/64), 3);
 
       if (red(colour) + green(colour) + blue(colour) > 0) {
-        polarGraphic.fill(colour);
+        polarGraphic.fill(R * 32, G * 32, B * 64);
         polarGraphic.noStroke();
         polarGraphic.ellipse(x, y, 6, 6);
       }
+
+      byte packedByte = (byte)((R << 5) | (G << 2) | (B & 0b11));  // I don't understand how this works but it puts all the (compressed) colours into one byte
+      output_array = append(output_array, packedByte);
+
+      saved_centre = true;
     }
   }
   polarGraphic.endDraw();
 }
 
+void savePolarPoints() {
+  // Convert to Arduino-compatible syntax
+  StringBuilder arduinoArray = new StringBuilder();
+  arduinoArray.append("byte myByteArray[] = {");
+  for (int i = 0; i < output_array.length; i++) {
+    arduinoArray.append(output_array[i]);
+    if (i < output_array.length - 1) arduinoArray.append(", "); // Add commas between elements
+  }
+  arduinoArray.append("};");
+
+  // Save to a text file
+  saveStrings("myByteArray.txt", new String[]{arduinoArray.toString()});
+
+  println("Byte array saved!");
+}
 
 void wrapText(String txt, float start_angle, color text_col) {
   float angleStep = radians(30);
   float radius = 130;
-  
+
   PFont boldFont;
   String fontlink = "C:\\WINDOWS\\FONTS\\BRLNSR.TTF";
   boldFont = createFont(fontlink, 120); // Load the bold font from the data folder
