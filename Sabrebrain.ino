@@ -3,8 +3,13 @@
 #include "SparkFun_LIS331.h"
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>  //needed for RGB LED
+#include <Adafruit_MMC56x3.h>
 
-LIS331 xl;
+/* Assign a unique ID to this sensor at the same time */
+Adafruit_MMC5603 mag = Adafruit_MMC5603(12345);
+
+LIS331 xl;  // accelerometer thing
+
 CRSFforArduino crsf = CRSFforArduino(&Serial1);
 
 
@@ -12,14 +17,15 @@ CRSFforArduino crsf = CRSFforArduino(&Serial1);
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 
 // settings
-int deadzone = 30;
+int deadzone = 30;   // for transmitter sticks
 int max_head = 360;  // max heading change in deg/s
-int cutoff = 0;      // for handling of spinner (making it run straight)
+int cutoff = 0;      // for handling of spinner (making it run straight), this seems to be unused
 int oneshot_Freq = 3500;
 int lightWidth = 15;
-int speed_int = 300;  // miliseconds between speed measurements
-int head_delay = 0;
-float correct_max = -0.1;  // ± ratio for correct, 0.5 would mean a range from 0.5 to 1.5
+int speed_int = 300;       // miliseconds between speed measurements
+int head_delay = 17;       // 17 seems good for v4, may need to be adjusted in future
+float correct_max = -0.1;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+const float gyro_fudge = 1;
 int min_drive = 50;
 
 // Robot stuff
@@ -30,10 +36,9 @@ const int MOTOR_RIGHT_PIN = 4;
 const int MOTOR_LEFT_PIN = 3;
 const int headPin = 2;  // LED heading pin
 const int ledPin = 11;
-#define NUMPIXELS 1
 
-Adafruit_NeoPixel pixels(NUMPIXELS, 12, NEO_GRB + NEO_KHZ800);
-const int accel_pow = 26;
+Adafruit_NeoPixel pixels(1, 12, NEO_GRB + NEO_KHZ800);
+const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
 
 // motors
 RP2040_PWM *motor_Right;
@@ -52,6 +57,8 @@ const int HEAD_MODE_CH = 7;
 const int DIR_CH = 8;
 
 bool stopflag = false;
+bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
+float mag_offset;            // holds the difference between 0 degrees bearing and 0 degrees for robot
 
 int powerCurve(int x);
 float servoTothoucentage(int servoSignal, int stickmode);
@@ -71,6 +78,9 @@ int16_t xoff = 0;
 int16_t yoff = 0;
 int16_t zoff = 0;
 float get_spin();
+
+
+const float Pi = 3.14159;
 
 // filter settings
 float x = 0.3;
@@ -136,6 +146,17 @@ void setup1() {
     }
   }
 
+  / set up mag if (!mmc.begin(MMC56X3_DEFAULT_ADDRESS, &Wire)) {  // I2C mode
+    Serial.println("Ooops, no MMC5603 detected ... Check your wiring!");
+    while (1) delay(10);
+  }
+
+  /* Display some basic information on this sensor */
+  mmc.printSensorDetails();
+
+  mmc.setDataRate(1000);  // in Hz, from 1-255 or 1000
+  mmc.setContinuousMode(true);
+
   Serial.println("Thread 1 started");
   xoff = 10;
   yoff = 10;
@@ -150,13 +171,13 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
   head = servoTothoucentage(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * correct_max) + 1;
   bool headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
-  int dir_in = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -10, 30);
+  int dir_in = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
   head_delay = dir_in;
 
   int left_sig, right_sig;
 
   // robot control modes
-  if (spin > 0) {  // spinning mode
+  if (spin > 0) {     // spinning mode
     if (!headMode) {  // spinning mode
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
@@ -164,7 +185,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       // spin = spin + delta > 1000 ? 1000 - trans : spin;  // reduce spin speed if delta would push them over 1000, removed for now as not really needed
       left_sig = spin + delta;
       right_sig = -spin + delta;
-    } else {  // heading correct mode
+    } else {                                      // heading correct mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
       if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
         head_change = degrees(atan2(-slip, trans));
@@ -213,6 +234,8 @@ void command_motors(int left, int right) {
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry
+// At the moment, speed will not be calculated if we always have a compass reading available, this could mean we don't get anything telemetry wise at low speed
+
 
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
   static unsigned long before = 0;  // only runs first loop because static
@@ -221,28 +244,50 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
   before = now;
   // finished loop time measurement
 
-
-  if (xl.newXData()) {
-    int16_t x, y, z;
-    xl.readAxes(x, y, z);
-    x = x + xoff;
-    y = y + yoff;
-    float xg = xl.convertToG(200, x);
-    float yg = xl.convertToG(200, y);
-
-    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
-
-    // FILTER ACCEL
-    float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
-    prev_filt_val = filtered_accel;
-
-    zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
+  bool mag_angle = false;
+  if (mag_speed_calc) {
+    uint8_t status = mmc.readRegister(0x18);  // Read STATUS register
+    if (status & 0x01) {                      // Check DRDY bit
+      mag_angle = true;
+    }
   }
 
+  if (mag_angle) {
+    //register check written by chatGPT, test it works:
+    // Check DRDY bit
+    /* Get a new sensor event */
+    sensors_event_t event;
+    mag.getEvent(&event);
 
+    // Calculate the angle of the vector y,x
+    float heading = (atan2(event.magnetic.y, event.magnetic.x) * 180) / Pi;
 
-  float zrot = zrotspd - (head / 3);                             // injecting head in here allows us to get a specific degrees/s
-  angle = fmod(angle + (zrot * looptime / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
+    // Normalize to 0-360
+    if (heading < 0) {
+      heading = 360 + heading;
+    }
+
+    angle = heading + mag_offset;
+  } else {
+    if (xl.newXData()) {
+      int16_t x, y, z;
+      xl.readAxes(x, y, z);
+      x = x + xoff;
+      y = y + yoff;
+      float xg = xl.convertToG(200, x);
+      float yg = xl.convertToG(200, y);
+
+      float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
+
+      // FILTER ACCEL
+      float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
+      prev_filt_val = filtered_accel;
+
+      zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
+    }
+    float zrot = zrotspd - (head / 3);                             // injecting head in here allows us to get a specific degrees/s
+    angle = fmod(angle + (zrot * looptime / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
+  }
 
 
   if (fmod(angle + 180, 360) > 180 + head_delay - lightWidth && fmod(angle + 180, 360) < 180 + head_delay + lightWidth) {  // check whether to flash heading LED
