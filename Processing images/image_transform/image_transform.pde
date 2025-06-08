@@ -1,5 +1,5 @@
 int numAngles = 150; // Number of angle slices (e.g., LEDs per ring)
-int numRadii = 24;  // Number of radial slices
+int numRadii = 23;  // Number of radial slices
 float[][][] polarData = new float[numAngles][numRadii][3]; // 3D array for [angle][radius][RGB]
 
 PGraphics rectGraphic; // For the rectangular graphic

@@ -3,7 +3,7 @@
 
 #include <FastLED.h>
 
-#define NUM_LEDS 78
+#define NUM_LEDS 23
 #define DATA_PIN 27  // Change this to match your LED strip's data pin
 #define BRIGHTNESS 255
 

@@ -1,9 +1,14 @@
+// Software for melty brain robot written by Owen Fisher 2024-25
+
 #include "CRSFforArduino.hpp"
 #include "RP2040_PWM.h"
 #include "SparkFun_LIS331.h"
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>  //needed for RGB LED
+#include <FastLED.h>
 #include <Adafruit_MMC56x3.h>
+
+#define BRIGHTNESS 255
 
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_MMC5603 mag = Adafruit_MMC5603(12345);
@@ -11,7 +16,6 @@ Adafruit_MMC5603 mag = Adafruit_MMC5603(12345);
 LIS331 xl;  // accelerometer thing
 
 CRSFforArduino crsf = CRSFforArduino(&Serial1);
-
 
 /* This needs to be up here, to prevent compiler warnings. */
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
@@ -25,19 +29,30 @@ int lightWidth = 15;
 int speed_int = 300;       // miliseconds between speed measurements
 int head_delay = 17;       // 17 seems good for v4, may need to be adjusted in future
 float correct_max = -0.1;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
-const float gyro_fudge = 1;
-int min_drive = 50;
+int min_drive = 80;
 
 // Robot stuff
-const float accel_rad = 42.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 61.0 / 1000.0;  // input in mm, outputs m
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
 const int MOTOR_LEFT_PIN = 3;
-const int headPin = 2;  // LED heading pin
-const int ledPin = 11;
+const int ledPin = 11;  // SEEED board LED pin
 
 Adafruit_NeoPixel pixels(1, 12, NEO_GRB + NEO_KHZ800);
+
+
+// Sabrescreen stuff
+const int headPin = 27;  // LED heading pin
+const int NUM_LEDS = 23;
+const float NUM_SLICES = 150;  // the 3 slice settings all need to be float for the calculations to work
+const float slice_size = 360 / NUM_SLICES;
+const float half_slice = slice_size / 2;
+
+CRGB leds[NUM_LEDS];       // array to hold LED colours
+void paint_screen(angle);  // function to control LEDs
+
+
 const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
 
 // motors
@@ -55,8 +70,10 @@ const int HEAD_CH = 4;
 const int CORRECT_CH = 6;
 const int HEAD_MODE_CH = 7;
 const int DIR_CH = 8;
+const int MAG_CH = 9;    // used for deactivating magnetometer
+const int EMOTE_CH = 10  // used to trigger emote message
 
-bool stopflag = false;
+  bool stopflag = false;
 bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
 float mag_offset;            // holds the difference between 0 degrees bearing and 0 degrees for robot
 
@@ -72,21 +89,16 @@ float correct = 1;
 bool wep = false;
 
 // rotation tracking
-float angle = 0;
+float angle = 0;  // current robot angle
 float zrotspd = 0;
 int16_t xoff = 0;
 int16_t yoff = 0;
 int16_t zoff = 0;
-float get_spin();
-
-
-const float Pi = 3.14159;
 
 // filter settings
 float x = 0.3;
 float a0 = 1 - x;
 float b1 = x;
-
 float prev_filt_val = 0;
 
 
@@ -182,7 +194,6 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
       float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
-      // spin = spin + delta > 1000 ? 1000 - trans : spin;  // reduce spin speed if delta would push them over 1000, removed for now as not really needed
       left_sig = spin + delta;
       right_sig = -spin + delta;
     } else {                                      // heading correct mode
@@ -202,7 +213,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
     slip = slip * 0.1;
     if (headMode) {
       angle = 0;  // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
-      command_motors(0, 0);
+      // command_motors(0, 0); // removed because it looks like it'll break things here but check function
       for (int i = 0; i <= 3; i++) {
         digitalWrite(headPin, LOW);
         delay(200);
@@ -224,8 +235,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
 
 void command_motors(int left, int right) {
 
-  // this has to be just before motor drive the rest of the loop!
-  if (stopflag) {
+  if (stopflag) {  // E-stop
     right = 0;
     left = 0;
   }
@@ -234,8 +244,7 @@ void command_motors(int left, int right) {
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry
-// At the moment, speed will not be calculated if we always have a compass reading available, this could mean we don't get anything telemetry wise at low speed
-
+                // At the moment, speed will not be calculated if we always have a compass reading available, this could mean we don't get anything telemetry wise at low speed
 
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
   static unsigned long before = 0;  // only runs first loop because static
@@ -289,12 +298,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
     angle = fmod(angle + (zrot * looptime / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   }
 
-
-  if (fmod(angle + 180, 360) > 180 + head_delay - lightWidth && fmod(angle + 180, 360) < 180 + head_delay + lightWidth) {  // check whether to flash heading LED
-    digitalWrite(headPin, HIGH);
-  } else {
-    digitalWrite(headPin, LOW);
-  }
+  paintscreen(angle);  // call function to control LEDs
 
   // Telemetry stuff
   static unsigned long lastGpsUpdate = 0;
@@ -357,7 +361,7 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistic
     - Signal-to-Noise Ratio (dBm)
     - Transmitter Power (mW) */
   int lqi = linkStatistics.lqi;
-  if (lqi < 10) {
+  if (lqi < 10) {  // if link has dropped
     stopflag = true;
     Serial.println(lqi);
   } else {
