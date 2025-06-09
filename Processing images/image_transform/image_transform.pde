@@ -8,7 +8,7 @@ PGraphics rectGraphic; // For the rectangular graphic
 PGraphics polarGraphic; // For the polar-transformed graphic
 int canvas_size = 500;
 int canv_centre = canvas_size/2;
-byte[][] output_array = new byte[numAngles][0];
+color[][] output_array = new color[numAngles][0];
 
 void setup() {
   size(1000, 500); // One window, split into two halves
@@ -24,7 +24,7 @@ void draw() {
   background(0);
 
   // Draw the rectangular graphic on the left
-  image(rectGraphic, 0, 0);
+image(rectGraphic, 0, 0);
 
   // Draw the polar-transformed graphic on the right
   image(polarGraphic, canvas_size, 0);
@@ -35,14 +35,16 @@ void createRectGraphic() {
   rectGraphic.background(0);
   rectGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
   rectGraphic.rotate(PI);
-
-  image_name = "IMAGE_pointer";
+  
+  
+  //  --------------------------------------------------------SETTINGS HERE --------------------------------------------------------
   //wrapText("SABRETOOTH", 132, color(255, 0, 0));
   //wrapText("HE HE HE", 165, color(0, 255, 0));
   draw_outer_ring();
+  image_name = "IMAGE_pointer";
   //draw_white_flash();
-  //draw_image();
   draw_pointer_arrow();
+  //draw_image();
   rectGraphic.endDraw();
 }
 
@@ -61,18 +63,14 @@ void createPolarGraphic() {
       int y = int(min(radius * cos(theta), canvas_size - 1)); // lock max value to the size of the pixel array
 
       color colour = rectGraphic.get(x + canv_centre, y + canv_centre);
-      int R = min(round((red(colour)+1)/32), 7);
-      int G = min(round((green(colour)+1)/32), 7);
-      int B = min(round((blue(colour)+1)/64), 3);
 
       if (red(colour) + green(colour) + blue(colour) > 0) {
-        polarGraphic.fill(round(R * 36.4), round(G * 36.4), B * 85);
+        polarGraphic.fill(colour);
         polarGraphic.noStroke();
         polarGraphic.ellipse(x, y, 6, 6);
       }
-
-      byte packedByte = (byte)((R << 5) | (G << 2) | (B & 0b11));  // I don't understand how this works but it puts all the (compressed) colours into one byte
-      output_array[a] = append(output_array[a], packedByte);
+      
+      output_array[a] = append(output_array[a], colour);
     }
   }
   polarGraphic.endDraw();
@@ -81,10 +79,10 @@ void createPolarGraphic() {
 void savePolarPoints() {
   // Convert to Arduino-compatible syntax
   StringBuilder arduinoArray = new StringBuilder();
-  arduinoArray.append("const byte " + image_name + "[150],[23] = {\n[");
+  arduinoArray.append("const CRGB " + image_name + "[150],[23] = {\n[");
   for (int i = 0; i < output_array.length; i++) {
     for (int j = 0; j < output_array[i].length; j++) {
-    arduinoArray.append(output_array[i][j]);
+    arduinoArray.append("CRGB(" + (int)red(output_array[i][j]) + "," + (int)green(output_array[i][j]) + "," + (int)blue(output_array[i][j]) + ")");  // build CRGB from colour
     if (j < output_array[i].length - 1) arduinoArray.append(", "); // Add commas between elements
     }
     arduinoArray.append((i < output_array.length - 1) ? "],\n[" : "]");

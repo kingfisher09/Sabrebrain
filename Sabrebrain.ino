@@ -49,6 +49,7 @@ const float NUM_SLICES = 150;  // the 3 slice settings all need to be float for 
 const float slice_size = 360 / NUM_SLICES;
 const float half_slice = slice_size / 2;
 
+CRGB LEDframe[NUM_SLICES][NUM_LEDS] = new byte[numAngles][NUM_SLICES][NUM_LEDS];  // 2d array to hold current LED frame
 CRGB leds[NUM_LEDS];       // array to hold LED colours
 void paint_screen(angle);  // function to control LEDs
 
