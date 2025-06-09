@@ -41,11 +41,12 @@ void createRectGraphic() {
   //wrapText("SABRETOOTH", 132, color(255, 0, 0));
   //wrapText("HE HE HE", 165, color(0, 255, 0));
   draw_outer_ring();
-  image_name = "IMAGE_pointer";
+  image_name = "image_playing";
   //draw_white_flash();
-  draw_pointer_arrow();
-  //draw_image();
+  //draw_pointer_arrow();
+  draw_image();
   rectGraphic.endDraw();
+  //  --------------------------------------------------------SETTINGS HERE --------------------------------------------------------
 }
 
 void createPolarGraphic() {
@@ -79,6 +80,8 @@ void createPolarGraphic() {
 void savePolarPoints() {
   // Convert to Arduino-compatible syntax
   StringBuilder arduinoArray = new StringBuilder();
+  arduinoArray.append("#ifndef " + image_name.toUpperCase() + "_H\n#define " + image_name.toUpperCase() + "_H\n\n");
+  
   arduinoArray.append("const CRGB " + image_name + "[150],[23] = {\n[");
   for (int i = 0; i < output_array.length; i++) {
     for (int j = 0; j < output_array[i].length; j++) {
@@ -88,10 +91,10 @@ void savePolarPoints() {
     arduinoArray.append((i < output_array.length - 1) ? "],\n[" : "]");
 
   }
-  arduinoArray.append("};");
+  arduinoArray.append("};\n\n#endif");
 
   // Save to a text file
-  saveStrings("myByteArray.txt", new String[]{arduinoArray.toString()});
+  saveStrings("C:\\Git\\Sabrebrain\\Sabrebrain\\" + image_name + ".h", new String[]{arduinoArray.toString()});
 
   println("Byte array saved!");
 }
