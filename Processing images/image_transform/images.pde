@@ -20,9 +20,20 @@ void draw_white_flash() {
   rectGraphic.rect(0, 0, canvas_size, canvas_size);
 }
 
+
 void draw_image() {
+  float scale = 1;
   PImage img;
   rectGraphic.rotate(radians(180));
-  img = loadImage("C:\\Users\\ofish\\Pictures\\Wedding edit tiny.jpg");
-  rectGraphic.image(img, -canv_centre, -canv_centre);
+  img = loadImage("C:\\Users\\ofish\\Pictures\\Sabrepic5.png");
+  boolean fitwidth = true;
+  if (fitwidth) {
+    scale = (float)canvas_size / img.width;
+  } else {
+    scale = (float)canvas_size / img.height;
+  }
+  
+  rectGraphic.image(img, -(scale * img.width/2), -(scale * img.height/2), scale * img.width, scale * img.height);
+  
+  rectGraphic.rotate(radians(180));  // reset image orientation
 }
