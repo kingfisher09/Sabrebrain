@@ -7,11 +7,15 @@
 #include <Adafruit_NeoPixel.h>  //needed for RGB LED
 #include <FastLED.h>
 #include <Adafruit_MMC56x3.h>
+#include <math.h>
+
+// images here:
+#include "image_pointer.h"
 
 #define BRIGHTNESS 255
 
 /* Assign a unique ID to this sensor at the same time */
-Adafruit_MMC5603 mag = Adafruit_MMC5603(12345);
+Adafruit_MMC5603 mmc = Adafruit_MMC5603(12345);
 
 LIS331 xl;  // accelerometer thing
 
@@ -49,10 +53,10 @@ const float NUM_SLICES = 150;  // the 3 slice settings all need to be float for 
 const float slice_size = 360 / NUM_SLICES;
 const float half_slice = slice_size / 2;
 
-CRGB LEDframe[NUM_SLICES][NUM_LEDS] = new byte[numAngles][NUM_SLICES][NUM_LEDS];  // 2d array to hold current LED frame
-CRGB leds[NUM_LEDS];       // array to hold LED colours
-void paint_screen(angle);  // function to control LEDs
-
+CRGB LEDframe[(int)NUM_SLICES][(int)NUM_LEDS];  // 2d array to hold current LED frame
+CRGB leds[NUM_LEDS];                            // array to hold LED colours
+void paint_screen();                            // function to control LEDs
+bool update_image = false;
 
 const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
 
@@ -71,10 +75,10 @@ const int HEAD_CH = 4;
 const int CORRECT_CH = 6;
 const int HEAD_MODE_CH = 7;
 const int DIR_CH = 8;
-const int MAG_CH = 9;    // used for deactivating magnetometer
-const int EMOTE_CH = 10  // used to trigger emote message
+const int MAG_CH = 9;     // used for deactivating magnetometer
+const int EMOTE_CH = 10;  // used to trigger emote message
 
-  bool stopflag = false;
+bool stopflag = false;
 bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
 float mag_offset;            // holds the difference between 0 degrees bearing and 0 degrees for robot
 
@@ -85,6 +89,7 @@ float servoTothoucentage(int servoSignal, int stickmode);
 float slip = 0;
 float trans = 0;
 float head = 0;
+float zrot = 0;
 float spin = 0;
 float correct = 1;
 bool wep = false;
@@ -119,9 +124,8 @@ void setup() {
   /* Set your link statistics callback. */
   crsf.setLinkStatisticsCallback(onLinkStatisticsUpdate);
 
-  pinMode(headPin, OUTPUT);
+  // >>>>>>>>>> Change this to use fast LED
   pinMode(ledPin, OUTPUT);
-
   // PowerLED stuff
   pixels.begin();
   digitalWrite(ledPin, HIGH);
@@ -159,9 +163,12 @@ void setup1() {
     }
   }
 
-  / set up mag if (!mmc.begin(MMC56X3_DEFAULT_ADDRESS, &Wire)) {  // I2C mode
+  // set up mag
+  if (!mmc.begin(MMC56X3_DEFAULT_ADDRESS, &Wire)) {  // I2C mode
     Serial.println("Ooops, no MMC5603 detected ... Check your wiring!");
     while (1) delay(10);
+
+    memcpy(LEDframe, image_pointer, sizeof(image_pointer));  // set the default image in memory
   }
 
   /* Display some basic information on this sensor */
@@ -230,18 +237,8 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
+  paint_screen(angle);  // update screwen
   command_motors(left_sig, right_sig);
-}
-
-
-void command_motors(int left, int right) {
-
-  if (stopflag) {  // E-stop
-    right = 0;
-    left = 0;
-  }
-  motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left));
-  motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right));
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry
@@ -255,22 +252,22 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
   // finished loop time measurement
 
   bool mag_angle = false;
-  if (mag_speed_calc) {
-    uint8_t status = mmc.readRegister(0x18);  // Read STATUS register
-    if (status & 0x01) {                      // Check DRDY bit
-      mag_angle = true;
-    }
-  }
+  // if (mag_speed_calc) {
+  //   uint8_t status = mmc.readRegister(0x18);  // Read STATUS register
+  //   if (status & 0x01) {                      // Check DRDY bit
+  //     mag_angle = true;
+  //   }
+  // }
 
   if (mag_angle) {
     //register check written by chatGPT, test it works:
     // Check DRDY bit
-    /* Get a new sensor event */
+    /* Get a new sensor even */
     sensors_event_t event;
-    mag.getEvent(&event);
+    mmc.getEvent(&event);
 
     // Calculate the angle of the vector y,x
-    float heading = (atan2(event.magnetic.y, event.magnetic.x) * 180) / Pi;
+    float heading = (atan2(event.magnetic.y, event.magnetic.x) * 180) / PI;
 
     // Normalize to 0-360
     if (heading < 0) {
@@ -295,11 +292,11 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
 
       zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
     }
-    float zrot = zrotspd - (head / 3);                             // injecting head in here allows us to get a specific degrees/s
+    zrot = zrotspd - (head / 3);                             // injecting head in here allows us to get a specific degrees/s
     angle = fmod(angle + (zrot * looptime / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   }
 
-  paintscreen(angle);  // call function to control LEDs
+  paint_screen(angle);  // call function to control LEDs
 
   // Telemetry stuff
   static unsigned long lastGpsUpdate = 0;
@@ -311,61 +308,3 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
   }
 }
 
-int powerCurve(int x) {
-  int power = 3;
-  long divisor = (pow(1000, power - 1));
-  return (pow(x, power)) / divisor;
-}
-
-float servoTothoucentage(int servoSignal, int stickmode) {
-  // Map the servo signal to the range of -1000 to +1000, provide deazone = 1 for a channel with 1000 being default, deazone 2 for 1500 default
-  int lower;
-  if (stickmode == 0) {  // deadzones
-    lower = 0;
-    if (servoSignal <= 1000 + deadzone) {
-      servoSignal = 1000;
-    }
-  } else if (stickmode == 1) {
-    lower = -1000;
-    if (servoSignal >= 1500 - deadzone && servoSignal <= 1500 + deadzone) {
-      servoSignal = 1500;
-    }
-  }
-  return map(servoSignal, 1000, 2000, lower, 1000);
-}
-
-float oneshot_Duty(int thoucentage) {  // function to turn thoucentages into oneshot pulses
-
-  if (thoucentage > 1000) {  // cap to ± 1000
-    thoucentage = 1000;
-  }
-  if (thoucentage < -1000) {
-    thoucentage = -1000;
-  }
-  float oneshot_P = 1000000 / oneshot_Freq;
-  float inMin = -1000.0f;
-  float inMax = 1000.0f;
-  float outMin = 125.0f;
-  float outMax = 250.0f;  // these numbers reached experimentally by playing with speeds, I think 125 and 250 are the defaults
-  float mic = outMin + (thoucentage - inMin) * (outMax - outMin) / (inMax - inMin);
-
-  float dut = mic * 100 / oneshot_P;  //turn into percentage duty cycle
-  return dut;
-}
-
-
-void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
-  /* Here is where you can read out the link statistics.
-    You have access to the following data:
-    - RSSI (dBm)
-    - Link Quality (%)
-    - Signal-to-Noise Ratio (dBm)
-    - Transmitter Power (mW) */
-  int lqi = linkStatistics.lqi;
-  if (lqi < 10) {  // if link has dropped
-    stopflag = true;
-    Serial.println(lqi);
-  } else {
-    stopflag = false;
-  }
-}

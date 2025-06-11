@@ -41,10 +41,10 @@ void createRectGraphic() {
   //wrapText("SABRETOOTH", 132, color(255, 0, 0));
   //wrapText("HE HE HE", 165, color(0, 255, 0));
   draw_outer_ring();
-  image_name = "image_playing";
+  image_name = "image_pointer";
   //draw_white_flash();
-  //draw_pointer_arrow();
-  draw_image();
+  draw_pointer_arrow();
+  //draw_image();
   rectGraphic.endDraw();
   //  --------------------------------------------------------SETTINGS HERE --------------------------------------------------------
 }
@@ -78,17 +78,19 @@ void createPolarGraphic() {
 }
 
 void savePolarPoints() {
-  // Convert to Arduino-compatible syntax
+  
+  // --------------- Convert to Arduino-compatible syntax ---------
+  
   StringBuilder arduinoArray = new StringBuilder();
   arduinoArray.append("#ifndef " + image_name.toUpperCase() + "_H\n#define " + image_name.toUpperCase() + "_H\n\n");
   
-  arduinoArray.append("const CRGB " + image_name + "[150],[23] = {\n[");
+  arduinoArray.append("const CRGB " + image_name + "[" + numAngles + "][" + numLEDs + "] = {\n{");
   for (int i = 0; i < output_array.length; i++) {
     for (int j = 0; j < output_array[i].length; j++) {
     arduinoArray.append("CRGB(" + (int)red(output_array[i][j]) + "," + (int)green(output_array[i][j]) + "," + (int)blue(output_array[i][j]) + ")");  // build CRGB from colour
     if (j < output_array[i].length - 1) arduinoArray.append(", "); // Add commas between elements
     }
-    arduinoArray.append((i < output_array.length - 1) ? "],\n[" : "]");
+    arduinoArray.append((i < output_array.length - 1) ? "},\n{" : "}");
 
   }
   arduinoArray.append("};\n\n#endif");
