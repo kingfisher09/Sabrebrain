@@ -4,15 +4,12 @@
 #include "RP2040_PWM.h"
 #include "SparkFun_LIS331.h"
 #include <Wire.h>
-#include <Adafruit_NeoPixel.h>  //needed for RGB LED
 #include <FastLED.h>
 #include <Adafruit_MMC56x3.h>
 #include <math.h>
 
 // images here:
 #include "image_pointer.h"
-
-#define BRIGHTNESS 255
 
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_MMC5603 mmc = Adafruit_MMC5603(12345);
@@ -41,13 +38,11 @@ const float accel_rad = 61.0 / 1000.0;  // input in mm, outputs m
 // pins
 const int MOTOR_RIGHT_PIN = 4;
 const int MOTOR_LEFT_PIN = 3;
-const int ledPin = 11;  // SEEED board LED pin
-
-Adafruit_NeoPixel pixels(1, 12, NEO_GRB + NEO_KHZ800);
+#define ledPin 11;   // SEEED board LED pin
+#define headPin 27;  // LED heading pin
 
 
 // Sabrescreen stuff
-const int headPin = 27;  // LED heading pin
 const int NUM_LEDS = 23;
 const float NUM_SLICES = 150;  // the 3 slice settings all need to be float for the calculations to work
 const float slice_size = 360 / NUM_SLICES;
@@ -124,11 +119,12 @@ void setup() {
   /* Set your link statistics callback. */
   crsf.setLinkStatisticsCallback(onLinkStatisticsUpdate);
 
-  // >>>>>>>>>> Change this to use fast LED
-  pinMode(ledPin, OUTPUT);
-  // PowerLED stuff
-  pixels.begin();
-  digitalWrite(ledPin, HIGH);
+  // set up LEDs
+  FastLED.addLeds<WS2812B, headPin, GRB>(LEDframe, NUM_LEDS);
+  CRGB onePixel[] = { CRGB(255, 255, 255) };
+  FastLED.addLeds<WS2812B, ledPin, GRB>(onePixel, 1);
+  FastLED.clear();  // ensure all LEDs start off
+  FastLED.show();
 
   // initialise motors
   motor_Right = new RP2040_PWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(0));
@@ -237,7 +233,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
-  paint_screen(angle);  // update screwen
+  paint_screen(angle);  // update screen
   command_motors(left_sig, right_sig);
 }
 
@@ -292,7 +288,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
 
       zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
     }
-    zrot = zrotspd - (head / 3);                             // injecting head in here allows us to get a specific degrees/s
+    zrot = zrotspd - (head / 3);                                   // injecting head in here allows us to get a specific degrees/s
     angle = fmod(angle + (zrot * looptime / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   }
 
@@ -307,4 +303,3 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
     crsf.telemetryWriteGPS(0, head_delay, zrot * 6000 / 360, 0, accel_rad * 100 * correct, 0);
   }
 }
-
