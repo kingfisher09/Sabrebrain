@@ -41,7 +41,7 @@ void createRectGraphic() {
   //wrapText("SABRETOOTH", 132, color(255, 0, 0));
   //wrapText("HE HE HE", 165, color(0, 255, 0));
   draw_outer_ring();
-  image_name = "image_pointer";
+  image_name = "image_testing";
   //draw_white_flash();
   draw_pointer_arrow();
   //draw_image();

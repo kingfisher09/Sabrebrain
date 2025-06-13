@@ -26,11 +26,11 @@ int deadzone = 30;   // for transmitter sticks
 int max_head = 360;  // max heading change in deg/s
 int cutoff = 0;      // for handling of spinner (making it run straight), this seems to be unused
 int oneshot_Freq = 3500;
-int lightWidth = 15;
 int speed_int = 300;       // miliseconds between speed measurements
 int head_delay = 17;       // 17 seems good for v4, may need to be adjusted in future
 float correct_max = -0.1;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 int min_drive = 80;
+const int rainbow_delay = 40;
 
 // Robot stuff
 const float accel_rad = 61.0 / 1000.0;  // input in mm, outputs m
@@ -38,9 +38,9 @@ const float accel_rad = 61.0 / 1000.0;  // input in mm, outputs m
 // pins
 const int MOTOR_RIGHT_PIN = 4;
 const int MOTOR_LEFT_PIN = 3;
-#define ledPin 11;   // SEEED board LED pin
-#define headPin 27;  // LED heading pin
-
+#define LED_POWER_PIN 11  //  builtin LED Power control pin
+#define LED_PIN 12        // Data pin for NeoPixel
+const int headPin = 27;   // LED heading pin
 
 // Sabrescreen stuff
 const int NUM_LEDS = 23;
@@ -52,6 +52,7 @@ CRGB LEDframe[(int)NUM_SLICES][(int)NUM_LEDS];  // 2d array to hold current LED 
 CRGB leds[NUM_LEDS];                            // array to hold LED colours
 void paint_screen();                            // function to control LEDs
 bool update_image = false;
+const int hue_change = round(255 / NUM_LEDS);  // make sure you get a full rainbow along the line
 
 const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
 
@@ -102,6 +103,10 @@ float a0 = 1 - x;
 float b1 = x;
 float prev_filt_val = 0;
 
+// testing stuff:
+float test_angle = 0;
+bool test_mode = false;
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -120,10 +125,15 @@ void setup() {
   crsf.setLinkStatisticsCallback(onLinkStatisticsUpdate);
 
   // set up LEDs
-  FastLED.addLeds<WS2812B, headPin, GRB>(LEDframe, NUM_LEDS);
-  CRGB onePixel[] = { CRGB(255, 255, 255) };
-  FastLED.addLeds<WS2812B, ledPin, GRB>(onePixel, 1);
-  FastLED.clear();  // ensure all LEDs start off
+
+  // Builtin LED first
+  pinMode(LED_POWER_PIN, OUTPUT);  // Turn on LED power
+  digitalWrite(LED_POWER_PIN, HIGH);
+  CRGB builtinLED[] = { CRGB(128, 128, 128) };
+  FastLED.addLeds<WS2812B, LED_PIN, GRB>(builtinLED, 1);
+
+  FastLED.addLeds<WS2812B, headPin, GRB>(leds, NUM_LEDS);  // connect to LED strip
+  FastLED.clear();                                         // ensure all LEDs start off
   FastLED.show();
 
   // initialise motors
@@ -178,7 +188,7 @@ void setup1() {
   yoff = 10;
 }
 
-void loop() {  // Loop 0 handles crsf receive and motor commands
+void loop() {  // Loop 0 handles crsf receive and motor commands, also updating pixels
 
   crsf.update();
   slip = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
@@ -200,6 +210,8 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
       float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
       left_sig = spin + delta;
       right_sig = -spin + delta;
+
+      paint_screen(angle);  // update screen
     } else {                                      // heading correct mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
       if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
@@ -213,15 +225,15 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
     }
 
   } else {  // normal robot mode
-    digitalWrite(headPin, HIGH);
+    rainbow_line();  // draw rainbow
     slip = slip * 0.1;
     if (headMode) {
       angle = 0;  // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
       // command_motors(0, 0); // removed because it looks like it'll break things here but check function
       for (int i = 0; i <= 3; i++) {
-        digitalWrite(headPin, LOW);
+        // digitalWrite(headPin, LOW);
         delay(200);
-        digitalWrite(headPin, HIGH);
+        // digitalWrite(headPin, HIGH);
         delay(200);
       }
     }
@@ -232,12 +244,17 @@ void loop() {  // Loop 0 handles crsf receive and motor commands
     right_sig = -slip + trans;
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
-
-  paint_screen(angle);  // update screen
+  if (test_mode) {
+    delay(1);
+    Serial.print("Test angle: ");
+    Serial.println((int)test_angle);
+    paint_screen(test_angle);  // update screen
+    test_angle = ((int)test_angle + 2) % 360;
+  } 
   command_motors(left_sig, right_sig);
 }
 
-void loop1() {  // Loop 1 handles speed calculation and telemetry
+void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading images
                 // At the moment, speed will not be calculated if we always have a compass reading available, this could mean we don't get anything telemetry wise at low speed
 
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
@@ -292,12 +309,10 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry
     angle = fmod(angle + (zrot * looptime / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   }
 
-  paint_screen(angle);  // call function to control LEDs
-
   // Telemetry stuff
   static unsigned long lastGpsUpdate = 0;
   if (now - lastGpsUpdate >= 500000) {
-    Serial.println(zrot / 6);
+    // Serial.println(zrot / 6);
     lastGpsUpdate = now;
     // Update the GPS telemetry data with the new values.
     crsf.telemetryWriteGPS(0, head_delay, zrot * 6000 / 360, 0, accel_rad * 100 * correct, 0);
