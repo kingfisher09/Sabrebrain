@@ -4,8 +4,8 @@ void command_motors(int left, int right) {
     right = 0;
     left = 0;
   }
-  motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left));
-  motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right));
+  motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left, LEFT_MOTOR_DIRECTION));
+  motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right, RIGHT_MOTOR_DIRECTION));
 }
 
 int powerCurve(int x) {
@@ -31,7 +31,15 @@ float servoTothoucentage(int servoSignal, int stickmode) {
   return map(servoSignal, 1000, 2000, lower, 1000);
 }
 
-float oneshot_Duty(int thoucentage) {  // function to turn thoucentages into oneshot pulses
+float oneshot_Duty(int thoucentage, int dir_flip) {  // function to turn thoucentages into oneshot pulses
+  if (abs(dir_flip) != 1) {                          // check dirlfip is ±1
+    Serial.println("dirflip set incorrectly in motor settup");
+    while (true) {
+      delay(1000);
+    }
+  }
+
+  thoucentage = thoucentage * dir_flip;  // apply direction flip
 
   if (thoucentage > 1000) {  // cap to ± 1000
     thoucentage = 1000;

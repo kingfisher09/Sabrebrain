@@ -28,12 +28,14 @@ int cutoff = 0;      // for handling of spinner (making it run straight), this s
 int oneshot_Freq = 3500;
 int speed_int = 300;       // miliseconds between speed measurements
 int head_delay = 17;       // 17 seems good for v4, may need to be adjusted in future
-float correct_max = -0.1;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+float correct_max = -0.2;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 int min_drive = 80;
 const int rainbow_delay = 40;
 
 // Robot stuff
-const float accel_rad = 61.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 74.0 / 1000.0;  // input in mm, outputs m
+#define RIGHT_MOTOR_DIRECTION -1
+#define LEFT_MOTOR_DIRECTION -1
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
@@ -59,7 +61,7 @@ const int accel_pow = 26;  // pin to power accelerometer, allows it to be restar
 // motors
 RP2040_PWM *motor_Right;
 RP2040_PWM *motor_Left;
-float oneshot_Duty(int thoucentage);
+float oneshot_Duty(int thoucentage, int dir_flip);
 void command_motors(int left, int right);
 
 // RF stuff
@@ -137,8 +139,8 @@ void setup() {
   FastLED.show();
 
   // initialise motors
-  motor_Right = new RP2040_PWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(0));
-  motor_Left = new RP2040_PWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(0));
+  motor_Right = new RP2040_PWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(0, 1));
+  motor_Left = new RP2040_PWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(0, 1));
   Serial.println("Thread 0 started");
   delay(1000);  // wait for ESCs to start up
 }
@@ -158,7 +160,7 @@ void setup1() {
 
   while (!accel_active) {
     xl.begin(LIS331::USE_I2C);
-    xl.setFullScale(LIS331::HIGH_RANGE);
+    xl.setFullScale(LIS331::MED_RANGE);
     xl.setODR(LIS331::DR_1000HZ);
     delay(100);
     if (xl.newXData()) {
@@ -212,6 +214,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands, also updating 
       right_sig = -spin + delta;
 
       paint_screen(angle);  // update screen
+
     } else {                                      // heading correct mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
       if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
@@ -224,16 +227,16 @@ void loop() {  // Loop 0 handles crsf receive and motor commands, also updating 
       right_sig = -spin;
     }
 
-  } else {  // normal robot mode
-    rainbow_line();  // draw rainbow
-    slip = slip * 0.1;
+  } else {              // normal robot mode
+    rainbow_line();     // draw rainbow
+    slip = slip * 0.1;  // reduce turning speed
     if (headMode) {
       angle = 0;  // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
-      // command_motors(0, 0); // removed because it looks like it'll break things here but check function
       for (int i = 0; i <= 3; i++) {
-        // digitalWrite(headPin, LOW);
-        delay(200);
-        // digitalWrite(headPin, HIGH);
+        fill_solid(leds, NUM_LEDS, CRGB::White);  // FastLED built-in function
+        FastLED.show();
+        delay(300);
+        FastLED.clear();
         delay(200);
       }
     }
@@ -244,13 +247,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands, also updating 
     right_sig = -slip + trans;
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
-  if (test_mode) {
-    delay(1);
-    Serial.print("Test angle: ");
-    Serial.println((int)test_angle);
-    paint_screen(test_angle);  // update screen
-    test_angle = ((int)test_angle + 2) % 360;
-  } 
+
   command_motors(left_sig, right_sig);
 }
 

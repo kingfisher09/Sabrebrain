@@ -17,10 +17,8 @@ void rainbow_line() {                          // called by loop 0 when not spin
   static int dir = 1;
 
   unsigned long now = millis();
-  // Serial.println(now - lastRainbowUpdate);
 
   if (now - lastRainbowUpdate >= rainbow_delay) {
-    Serial.println("Rainbow");
     leds[bow_pos] = CHSV(bow_pos * hue_change, 255, 255);
     blur1d(leds, NUM_LEDS, 172);
     fadeToBlackBy(leds, NUM_LEDS, 16);
