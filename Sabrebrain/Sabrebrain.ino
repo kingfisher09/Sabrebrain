@@ -190,7 +190,11 @@ void setup1() {
   yoff = 10;
 }
 
-void loop() {  // Loop 0 handles crsf receive and motor commands, also updating pixels
+void loop() {                           // Loop 0 handles crsf receive and motor commands, also updating pixels
+  unsigned long start_time = micros();  // # timing
+  unsigned long after_calcs;            // # timing
+  unsigned long after_paint;            // # timing
+  static int loopcount = 0;             // # timing
 
   crsf.update();
   slip = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
@@ -201,7 +205,7 @@ void loop() {  // Loop 0 handles crsf receive and motor commands, also updating 
   bool headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
   int dir_in = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
   head_delay = dir_in;
-
+  unsigned long after_crsf = micros() - start_time;  // # timing
   int left_sig, right_sig;
 
   // robot control modes
@@ -212,8 +216,9 @@ void loop() {  // Loop 0 handles crsf receive and motor commands, also updating 
       float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
       left_sig = spin + delta;
       right_sig = -spin + delta;
-
-      paint_screen(angle);  // update screen
+      unsigned long after_calcs = micros() - start_time - after_crsf;   // # timing
+      paint_screen(angle);                                              // update screen
+      unsigned long after_paint = micros() - start_time - after_calcs;  // # timing
 
     } else {                                      // heading correct mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
@@ -249,6 +254,23 @@ void loop() {  // Loop 0 handles crsf receive and motor commands, also updating 
   }
 
   command_motors(left_sig, right_sig);
+  unsigned long after_motors = micros() - start_time - after_paint;  // # timing
+
+  // # timing
+  if (loopcount == 200) {
+    Serial.print("Crossfire read: ");
+    Serial.println(after_crsf);
+    Serial.print("trans calcs: ");
+    Serial.println(after_calcs);
+    Serial.print("painting: ");
+    Serial.println(after_paint);
+    Serial.print("trans motors: ");
+    Serial.println(after_motors);
+    Serial.println();
+    loopcount = 0;
+  } else {
+    loopcount += 1;
+  }
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading images
