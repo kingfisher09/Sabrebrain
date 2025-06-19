@@ -131,8 +131,8 @@ void setup() {
   // Builtin LED first
   pinMode(LED_POWER_PIN, OUTPUT);  // Turn on LED power
   digitalWrite(LED_POWER_PIN, HIGH);
-  CRGB builtinLED[] = { CRGB(128, 128, 128) };
-  FastLED.addLeds<WS2812B, LED_PIN, GRB>(builtinLED, 1);
+  // CRGB builtinLED[] = { CRGB(128, 128, 128) };
+  // FastLED.addLeds<WS2812B, LED_PIN, GRB>(builtinLED, 1);
 
   FastLED.addLeds<WS2812B, headPin, GRB>(leds, NUM_LEDS);  // connect to LED strip
   FastLED.clear();                                         // ensure all LEDs start off
@@ -192,11 +192,20 @@ void setup1() {
 
 void loop() {                           // Loop 0 handles crsf receive and motor commands, also updating pixels
   unsigned long start_time = micros();  // # timing
-  unsigned long after_calcs;            // # timing
-  unsigned long after_paint;            // # timing
-  static int loopcount = 0;             // # timing
+  unsigned long first_time = start_time;
+  unsigned long newtime;  // # timing
+
+  unsigned long after_calcs = 0;  // # timing
+  unsigned long after_paint = 0;  // # timing
+  unsigned long after_copy = 0;         // # timing
+  static int loopcount = 0;       // # timing
 
   crsf.update();
+
+  newtime = micros();  // # <timing
+  unsigned long after_crsf = newtime - start_time;
+  start_time = newtime;  // # timing>
+
   slip = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
   trans = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
   spin = servoTothoucentage(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
@@ -205,7 +214,11 @@ void loop() {                           // Loop 0 handles crsf receive and motor
   bool headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
   int dir_in = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
   head_delay = dir_in;
-  unsigned long after_crsf = micros() - start_time;  // # timing
+
+  newtime = micros();  // # <timing
+  unsigned long after_crsfprocess = newtime - start_time;
+  start_time = newtime;  // # timing>
+
   int left_sig, right_sig;
 
   // robot control modes
@@ -216,9 +229,30 @@ void loop() {                           // Loop 0 handles crsf receive and motor
       float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
       left_sig = spin + delta;
       right_sig = -spin + delta;
-      unsigned long after_calcs = micros() - start_time - after_crsf;   // # timing
-      paint_screen(angle);                                              // update screen
-      unsigned long after_paint = micros() - start_time - after_calcs;  // # timing
+
+      newtime = micros();  // # <timing
+      after_calcs = newtime - start_time;
+      start_time = newtime;  // # timing>
+
+      // paint_screen(angle);  // update screen
+
+
+      // <<<<<<<<< paint screen here
+      int current_line = fmod(floor((angle + half_slice) / slice_size), NUM_SLICES);  // mod wraps the slices back to 0, floor with the half slice keeps things centred around 0
+      memcpy(leds, image_pointer[current_line], sizeof(leds));                           // write line of LEDs to the LED array
+
+      newtime = micros();  // # <timing
+      after_copy = newtime - start_time;
+      start_time = newtime;  // # timing>
+
+      // FastLED.clear();
+      FastLED.show();
+
+      // paint screen here >>>>>>>>>>
+
+      newtime = micros();  // # <timing
+      after_paint = newtime - start_time;
+      start_time = newtime;  // # timing>
 
     } else {                                      // heading correct mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
@@ -254,18 +288,31 @@ void loop() {                           // Loop 0 handles crsf receive and motor
   }
 
   command_motors(left_sig, right_sig);
-  unsigned long after_motors = micros() - start_time - after_paint;  // # timing
+
+  newtime = micros();  // # <timing
+  unsigned long after_motors = newtime - start_time;
+  start_time = newtime;  // # timing>
 
   // # timing
   if (loopcount == 200) {
     Serial.print("Crossfire read: ");
     Serial.println(after_crsf);
+
+    Serial.print("Crossfire process: ");
+    Serial.println(after_crsfprocess);
+
     Serial.print("trans calcs: ");
     Serial.println(after_calcs);
+
+    Serial.print("Copying: ");
+    Serial.println(after_copy);
+
     Serial.print("painting: ");
     Serial.println(after_paint);
+
     Serial.print("trans motors: ");
     Serial.println(after_motors);
+    Serial.println(start_time - first_time);
     Serial.println();
     loopcount = 0;
   } else {
