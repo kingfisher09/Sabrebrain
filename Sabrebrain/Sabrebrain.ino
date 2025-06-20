@@ -40,9 +40,10 @@ const float accel_rad = 74.0 / 1000.0;  // input in mm, outputs m
 // pins
 const int MOTOR_RIGHT_PIN = 4;
 const int MOTOR_LEFT_PIN = 3;
-#define LED_POWER_PIN 11  //  builtin LED Power control pin
-#define LED_PIN 12        // Data pin for NeoPixel
-const int headPin = 27;   // LED heading pin
+#define LED_POWER_PIN 11   //  builtin LED Power control pin
+#define LED_PIN 12         // Data pin for NeoPixel
+const int headPin = 27;    // LED heading data pin
+const int headClock = 28;  // LED clock pin
 
 // Sabrescreen stuff
 const int NUM_LEDS = 23;
@@ -66,6 +67,8 @@ void command_motors(int left, int right);
 
 // RF stuff
 // note channel 5 is used for shutdown so not in the list
+
+void updateCRSF();
 const int SLIP_CH = 1;
 const int TRANS_CH = 2;
 const int SPIN_CH = 3;
@@ -90,7 +93,7 @@ float head = 0;
 float zrot = 0;
 float spin = 0;
 float correct = 1;
-bool wep = false;
+bool headMode;
 
 // rotation tracking
 float angle = 0;  // current robot angle
@@ -134,8 +137,8 @@ void setup() {
   // CRGB builtinLED[] = { CRGB(128, 128, 128) };
   // FastLED.addLeds<WS2812B, LED_PIN, GRB>(builtinLED, 1);
 
-  FastLED.addLeds<WS2812B, headPin, GRB>(leds, NUM_LEDS);  // connect to LED strip
-  FastLED.clear();                                         // ensure all LEDs start off
+  FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, NUM_LEDS);  // connect to LED strip
+  FastLED.clear();                                                   // ensure all LEDs start off
   FastLED.show();
 
   // initialise motors
@@ -190,34 +193,16 @@ void setup1() {
   yoff = 10;
 }
 
-void loop() {                           // Loop 0 handles crsf receive and motor commands, also updating pixels
+void loop() {                           // Loop 0 handles motor commands and updating pixels
   unsigned long start_time = micros();  // # timing
   unsigned long first_time = start_time;
   unsigned long newtime;  // # timing
 
   unsigned long after_calcs = 0;  // # timing
   unsigned long after_paint = 0;  // # timing
-  unsigned long after_copy = 0;         // # timing
+  unsigned long after_copy = 0;   // # timing
   static int loopcount = 0;       // # timing
 
-  crsf.update();
-
-  newtime = micros();  // # <timing
-  unsigned long after_crsf = newtime - start_time;
-  start_time = newtime;  // # timing>
-
-  slip = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
-  trans = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
-  spin = servoTothoucentage(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
-  head = servoTothoucentage(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
-  correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * correct_max) + 1;
-  bool headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
-  int dir_in = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
-  head_delay = dir_in;
-
-  newtime = micros();  // # <timing
-  unsigned long after_crsfprocess = newtime - start_time;
-  start_time = newtime;  // # timing>
 
   int left_sig, right_sig;
 
@@ -239,7 +224,7 @@ void loop() {                           // Loop 0 handles crsf receive and motor
 
       // <<<<<<<<< paint screen here
       int current_line = fmod(floor((angle + half_slice) / slice_size), NUM_SLICES);  // mod wraps the slices back to 0, floor with the half slice keeps things centred around 0
-      memcpy(leds, image_pointer[current_line], sizeof(leds));                           // write line of LEDs to the LED array
+      memcpy(leds, image_pointer[current_line], sizeof(leds));                        // write line of LEDs to the LED array
 
       newtime = micros();  // # <timing
       after_copy = newtime - start_time;
@@ -295,12 +280,6 @@ void loop() {                           // Loop 0 handles crsf receive and motor
 
   // # timing
   if (loopcount == 200) {
-    Serial.print("Crossfire read: ");
-    Serial.println(after_crsf);
-
-    Serial.print("Crossfire process: ");
-    Serial.println(after_crsfprocess);
-
     Serial.print("trans calcs: ");
     Serial.println(after_calcs);
 
@@ -329,6 +308,8 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   long looptime = static_cast<float>(now - before);
   before = now;
   // finished loop time measurement
+
+  updateCRSF();  // update control
 
   bool mag_angle = false;
   // if (mag_speed_calc) {
