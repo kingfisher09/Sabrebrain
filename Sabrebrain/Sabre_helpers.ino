@@ -58,6 +58,19 @@ float oneshot_Duty(int thoucentage, int dir_flip) {  // function to turn thoucen
   return dut;
 }
 
+void updateCRSF() {
+
+  crsf.update();
+
+  slip = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
+  trans = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
+  spin = servoTothoucentage(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
+  head = servoTothoucentage(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
+  correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * correct_max) + 1;
+  headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
+  int dir_in = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
+  head_delay = dir_in;
+}
 
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
   /* Here is where you can read out the link statistics.
