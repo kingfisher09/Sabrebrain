@@ -14,6 +14,7 @@
 
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_MMC5603 mmc = Adafruit_MMC5603(12345);
+float read_mag();
 
 LIS331 xl;  // accelerometer thing
 
@@ -74,11 +75,13 @@ const int SLIP_CH = 1;
 const int TRANS_CH = 2;
 const int SPIN_CH = 3;
 const int HEAD_CH = 4;
-const int CORRECT_CH = 6;
+const int MAG_CH = 5;      // used for deactivating magnetometer
+const int CORRECT_CH = 6;  // used to correct accel radius
 const int HEAD_MODE_CH = 7;
-const int DIR_CH = 8;
-const int MAG_CH = 9;     // used for deactivating magnetometer
+const int DIR_CH = 8;  // used to correct heading offset
+const int LIGHT_CH = 9;
 const int EMOTE_CH = 10;  // used to trigger emote message
+
 
 bool stopflag = false;
 bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
@@ -91,14 +94,16 @@ float servoTothoucentage(int servoSignal, int stickmode);
 float slip = 0;
 float trans = 0;
 float head = 0;
-float zrot = 0;
 float spin = 0;
 float correct = 1;
 bool headMode;
+bool mag_angle = true;
 
 // rotation tracking
-float angle = 0;  // current robot angle
-float zrotspd = 0;
+float angle = 0;                    // current robot angle
+unsigned long last_angle_time = 0;  // program time when last angle was calculated
+float zrotspd = 0;                  // measured speed
+float zrot = 0;                     // measured speed with heading control injected
 int16_t xoff = 0;
 int16_t yoff = 0;
 int16_t zoff = 0;
@@ -108,10 +113,6 @@ float x = 0.3;
 float a0 = 1 - x;
 float b1 = x;
 float prev_filt_val = 0;
-
-// testing stuff:
-float test_angle = 0;
-bool test_mode = false;
 
 
 void setup() {
@@ -138,8 +139,8 @@ void setup() {
   // CRGB builtinLED[] = { CRGB(128, 128, 128) };
   // FastLED.addLeds<WS2812B, LED_PIN, GRB>(builtinLED, 1);
 
-  FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, NUM_LEDS);  // connect to LED strip
-  FastLED.clear();                                                   // ensure all LEDs start off
+  FastLED.addLeds<WS2812B, headPin, GRB>(leds, NUM_LEDS);  // connect to LED strip
+  FastLED.clear();                                         // ensure all LEDs start off
   FastLED.show();
 
   // initialise motors
@@ -193,9 +194,21 @@ void setup1() {
   yoff = 10;
 }
 
-void loop() {                           // Loop 0 handles motor commands and updating pixels
-  unsigned long start_time = micros();  // # timing
-  static int loopcount = 0;       // # timing
+void loop() {                    // Loop 0 handles motor commands, angle calc and updating pixels
+  unsigned long now = micros();  // # timing
+  static int loopcount = 0;      // # timing
+
+  // angle calc
+  if (read_mag) {
+    zrot = zrotspd;
+    mag_offset -= (head / 3);  // adjust magnetic offset using stick
+
+  } else {
+    zrot = zrotspd - (head / 3);  // add in head for changing angle
+  }
+  angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
+  last_angle_time = micros();
+
 
   int left_sig, right_sig;
 
@@ -209,33 +222,14 @@ void loop() {                           // Loop 0 handles motor commands and upd
       right_sig = -spin + delta;
 
       paint_screen(angle);  // update screen
-
-
-    } else {                                      // heading correct mode
-      static float head_change = 0;               // var to hold heading change between loops while button is held
-      if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
-        head_change = degrees(atan2(-slip, trans));
-      } else {
-        angle = angle - head_change;
-        head_change = 0;
-      }
-      left_sig = spin;
-      right_sig = -spin;
     }
+    left_sig = spin;
+    right_sig = -spin;
 
-  } else {              // normal robot mode
+  } else {  // normal robot mode
+
     rainbow_line();     // draw rainbow
     slip = slip * 0.1;  // reduce turning speed
-    if (headMode) {
-      angle = 0;  // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
-      for (int i = 0; i <= 3; i++) {
-        fill_solid(leds, NUM_LEDS, CRGB::White);  // FastLED built-in function
-        FastLED.show();
-        delay(300);
-        FastLED.clear();
-        delay(200);
-      }
-    }
 
     // normal driving with minimum motor speed
     left_sig = slip + trans;
@@ -246,9 +240,9 @@ void loop() {                           // Loop 0 handles motor commands and upd
 
   command_motors(left_sig, right_sig);
 
-  if (loopcount == 2000) {
-    Serial.println("Loop 0");
-    Serial.println(micros() - start_time);
+  if (loopcount == 20000) {
+    // Serial.println("Loop 0");
+    // Serial.println(micros() - now);
     // # timing
     loopcount = 0;
   } else {
@@ -260,42 +254,52 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
                 // At the moment, speed will not be calculated if we always have a compass reading available, this could mean we don't get anything telemetry wise at low speed
 
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
-  static unsigned long before = 0;
   unsigned long now = micros();
-
-  unsigned long start_time = now;  // # timing
-  static int loopcount = 0;       // # timing
-
-  long looptime = static_cast<float>(now - before);
-  before = now;
-  // finished loop time measurement
+  static int loopcount = 0;  // # timing
 
   updateCRSF();  // update control
 
-  bool mag_angle = false;
-  // if (mag_speed_calc) {
-  //   uint8_t status = mmc.readRegister(0x18);  // Read STATUS register
-  //   if (status & 0x01) {                      // Check DRDY bit
-  //     mag_angle = true;
-  //   }
-  // }
+  if (headMode) {
+    if (spin == 0) {             // not spinning head mode
+      angle = 0;                 // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
+      mag_offset = -read_mag();  // sets mag offset when not spinning
+      Serial.print("Mag offset now: ");
+      Serial.println(mag_offset);
+
+      for (int i = 0; i <= 3; i++) {
+        fill_solid(leds, NUM_LEDS, CRGB::White);  // FastLED built-in function
+        FastLED.show();
+      }
+      delay(300);
+      FastLED.clear();
+
+    } else {                                      // spinning head mode
+      static float head_change = 0;               // var to hold heading change between loops while button is held
+      if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
+        head_change = degrees(atan2(-slip, trans));
+      } else {  // doing it this way makes is to you have to release the button after the stick
+        if (read_mag) {
+          mag_offset = -read_mag();
+        } else {
+          angle = angle - head_change;
+        }
+        head_change = 0;
+      }
+    }
+  }
 
   if (mag_angle) {
-    //register check written by chatGPT, test it works:
-    // Check DRDY bit
-    /* Get a new sensor even */
-    sensors_event_t event;
-    mmc.getEvent(&event);
+    float heading = read_mag();  // update magnetometer
+    static float old_mag_angle = 0;
+    static unsigned long last_mag_update = 0;
 
-    // Calculate the angle of the vector y,x
-    float heading = (atan2(event.magnetic.y, event.magnetic.x) * 180) / PI;
-
-    // Normalize to 0-360
-    if (heading < 0) {
-      heading = 360 + heading;
-    }
 
     angle = heading + mag_offset;
+    last_angle_time = micros();
+
+    old_mag_angle = angle;                                                                           // record the last magnetic angle (not just the last angle)
+    zrotspd = 1000000 * abs(fmod(angle - old_mag_angle + 360, 360) / (micros() - last_mag_update));  // calculate rotational speed from mag angle change and time
+    last_mag_update = micros();
   } else {
     if (xl.newXData()) {
       int16_t x, y, z;
@@ -313,8 +317,6 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
 
       zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
     }
-    zrot = zrotspd - (head / 3);                                   // injecting head in here allows us to get a specific degrees/s
-    angle = fmod(angle + (zrot * looptime / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   }
 
   // Telemetry stuff
@@ -327,9 +329,9 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   }
 
   // # timing
-  if (loopcount == 50) {
+  if (loopcount == 5000) {
     Serial.println("Loop 1");
-    Serial.println(micros() - start_time);
+    Serial.println(micros() - now);
     loopcount = 0;
   } else {
     loopcount += 1;
