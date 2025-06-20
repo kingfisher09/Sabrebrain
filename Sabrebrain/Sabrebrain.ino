@@ -195,14 +195,7 @@ void setup1() {
 
 void loop() {                           // Loop 0 handles motor commands and updating pixels
   unsigned long start_time = micros();  // # timing
-  unsigned long first_time = start_time;
-  unsigned long newtime;  // # timing
-
-  unsigned long after_calcs = 0;  // # timing
-  unsigned long after_paint = 0;  // # timing
-  unsigned long after_copy = 0;   // # timing
   static int loopcount = 0;       // # timing
-
 
   int left_sig, right_sig;
 
@@ -215,29 +208,8 @@ void loop() {                           // Loop 0 handles motor commands and upd
       left_sig = spin + delta;
       right_sig = -spin + delta;
 
-      newtime = micros();  // # <timing
-      after_calcs = newtime - start_time;
-      start_time = newtime;  // # timing>
+      paint_screen(angle);  // update screen
 
-      // paint_screen(angle);  // update screen
-
-
-      // <<<<<<<<< paint screen here
-      int current_line = fmod(floor((angle + half_slice) / slice_size), NUM_SLICES);  // mod wraps the slices back to 0, floor with the half slice keeps things centred around 0
-      memcpy(leds, image_pointer[current_line], sizeof(leds));                        // write line of LEDs to the LED array
-
-      newtime = micros();  // # <timing
-      after_copy = newtime - start_time;
-      start_time = newtime;  // # timing>
-
-      // FastLED.clear();
-      FastLED.show();
-
-      // paint screen here >>>>>>>>>>
-
-      newtime = micros();  // # <timing
-      after_paint = newtime - start_time;
-      start_time = newtime;  // # timing>
 
     } else {                                      // heading correct mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
@@ -274,25 +246,12 @@ void loop() {                           // Loop 0 handles motor commands and upd
 
   command_motors(left_sig, right_sig);
 
-  newtime = micros();  // # <timing
-  unsigned long after_motors = newtime - start_time;
-  start_time = newtime;  // # timing>
+
 
   // # timing
-  if (loopcount == 200) {
-    Serial.print("trans calcs: ");
-    Serial.println(after_calcs);
-
-    Serial.print("Copying: ");
-    Serial.println(after_copy);
-
-    Serial.print("painting: ");
-    Serial.println(after_paint);
-
-    Serial.print("trans motors: ");
-    Serial.println(after_motors);
-    Serial.println(start_time - first_time);
-    Serial.println();
+  if (loopcount == 2000) {
+    Serial.println("Loop 0");
+    Serial.println(micros() - start_time);
     loopcount = 0;
   } else {
     loopcount += 1;
@@ -303,8 +262,12 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
                 // At the moment, speed will not be calculated if we always have a compass reading available, this could mean we don't get anything telemetry wise at low speed
 
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
-  static unsigned long before = 0;  // only runs first loop because static
+  static unsigned long before = 0;
   unsigned long now = micros();
+
+  unsigned long start_time = now;  // # timing
+  static int loopcount = 0;       // # timing
+
   long looptime = static_cast<float>(now - before);
   before = now;
   // finished loop time measurement
@@ -363,5 +326,14 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     lastGpsUpdate = now;
     // Update the GPS telemetry data with the new values.
     crsf.telemetryWriteGPS(0, head_delay, zrot * 6000 / 360, 0, accel_rad * 100 * correct, 0);
+  }
+
+  // # timing
+  if (loopcount == 50) {
+    Serial.println("Loop 1");
+    Serial.println(micros() - start_time);
+    loopcount = 0;
+  } else {
+    loopcount += 1;
   }
 }
