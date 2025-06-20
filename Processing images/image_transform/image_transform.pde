@@ -41,10 +41,11 @@ void createRectGraphic() {
   //wrapText("SABRETOOTH", 132, color(255, 0, 0));
   //wrapText("HE HE HE", 165, color(0, 255, 0));
   draw_outer_ring();
-  image_name = "image_testing";
+  image_name = "image_aircraft_lights";
   //draw_white_flash();
   draw_pointer_arrow();
-  //draw_image();
+  //draw_image("C:\\Users\\ofish\\Pictures\\Sabrepic5.png");
+  draw_image("C:\\Users\\ofish\\Pictures\\Aircraft lights.png");
   rectGraphic.endDraw();
   //  --------------------------------------------------------SETTINGS HERE --------------------------------------------------------
 }

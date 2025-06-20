@@ -1,14 +1,22 @@
-
-void paint_screen(float angle_in) {                                                  // called by loop 0
+void paint_screen(float angle_in) {  // called by loop 0
+  static int last_line = 0;
   int current_line = fmod(floor((angle_in + half_slice) / slice_size), NUM_SLICES);  // mod wraps the slices back to 0, floor with the half slice keeps things centred around 0
-  memcpy(leds, image_pointer[current_line], sizeof(leds));                           // write line of LEDs to the LED array
+  last_line = current_line;
 
-  if (test_mode) {
-    Serial.print("current line: ");
-    Serial.println(current_line);
+  memcpy(leds, image_pointer[current_line], sizeof(leds));  // write line of LEDs to the LED array
+  bool array_changed = false;
+
+  for (size_t i = 0; i < NUM_LEDS; i++) {
+    if (image_pointer[current_line][i] != image_pointer[last_line][i]){ 
+        array_changed = true;
+        break;
+    } 
   }
-  // FastLED.clear();
-  FastLED.show();
+
+  if (array_changed) {  // only run if array has changed. This will mess with timing a bit so remove with new LED strip
+    // FastLED.clear();
+    FastLED.show();
+  }
 }
 
 void rainbow_line() {                          // called by loop 0 when not spinning

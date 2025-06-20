@@ -21,11 +21,11 @@ void draw_white_flash() {
 }
 
 
-void draw_image() {
+void draw_image(String pather) {
   float scale = 1;
   PImage img;
   rectGraphic.rotate(radians(180));
-  img = loadImage("C:\\Users\\ofish\\Pictures\\Sabrepic5.png");
+  img = loadImage(pather);
   boolean fitwidth = true;
   if (fitwidth) {
     scale = (float)canvas_size / img.width;
