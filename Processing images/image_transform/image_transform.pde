@@ -24,7 +24,7 @@ void draw() {
   background(0);
 
   // Draw the rectangular graphic on the left
-image(rectGraphic, 0, 0);
+  image(rectGraphic, 0, 0);
 
   // Draw the polar-transformed graphic on the right
   image(polarGraphic, canvas_size, 0);
@@ -35,16 +35,20 @@ void createRectGraphic() {
   rectGraphic.background(0);
   rectGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
   rectGraphic.rotate(PI);
-  
-  
+
+
   //  --------------------------------------------------------SETTINGS HERE --------------------------------------------------------
   //wrapText("SABRETOOTH", 132, color(255, 0, 0));
   //wrapText("HE HE HE", 165, color(0, 255, 0));
+  draw_arc_segment() ;
   draw_outer_ring();
+  //image_name = "image_aircraft_lights";
   image_name = "image_testing";
   //draw_white_flash();
-  draw_pointer_arrow();
-  //draw_image();
+  //draw_pointer_arrow();
+  //draw_image("C:\\Users\\ofish\\Pictures\\Sabrepic5.png");
+  //draw_image("C:\\Users\\ofish\\Pictures\\Aircraft lights.png");
+  draw_image("C:\\Users\\ofish\\Pictures\\Pride roundle.png");
   rectGraphic.endDraw();
   //  --------------------------------------------------------SETTINGS HERE --------------------------------------------------------
 }
@@ -56,7 +60,7 @@ void createPolarGraphic() {
   polarGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
 
   for (int a = 0; a < numAngles; a++) {
-    float theta = map(a, 0, numAngles, 0, TWO_PI); // Map index to angle (0 to 2π)    
+    float theta = map(a, 0, numAngles, 0, TWO_PI); // Map index to angle (0 to 2π)
     for (int r = 1; r < numRadii; r++) {
       float radius = map(r, 0, numRadii, 0, canvas_size / 2); // Map index to radius (center to edge)
 
@@ -70,7 +74,7 @@ void createPolarGraphic() {
         polarGraphic.noStroke();
         polarGraphic.ellipse(x, y, 6, 6);
       }
-      
+
       output_array[a] = append(output_array[a], colour);
     }
   }
@@ -78,20 +82,19 @@ void createPolarGraphic() {
 }
 
 void savePolarPoints() {
-  
+
   // --------------- Convert to Arduino-compatible syntax ---------
-  
+
   StringBuilder arduinoArray = new StringBuilder();
   arduinoArray.append("#ifndef " + image_name.toUpperCase() + "_H\n#define " + image_name.toUpperCase() + "_H\n\n");
-  
+
   arduinoArray.append("const CRGB " + image_name + "[" + numAngles + "][" + numLEDs + "] = {\n{");
   for (int i = 0; i < output_array.length; i++) {
     for (int j = 0; j < output_array[i].length; j++) {
-    arduinoArray.append("CRGB(" + (int)red(output_array[i][j]) + "," + (int)green(output_array[i][j]) + "," + (int)blue(output_array[i][j]) + ")");  // build CRGB from colour
-    if (j < output_array[i].length - 1) arduinoArray.append(", "); // Add commas between elements
+      arduinoArray.append("CRGB(" + (int)red(output_array[i][j]) + "," + (int)green(output_array[i][j]) + "," + (int)blue(output_array[i][j]) + ")");  // build CRGB from colour
+      if (j < output_array[i].length - 1) arduinoArray.append(", "); // Add commas between elements
     }
     arduinoArray.append((i < output_array.length - 1) ? "},\n{" : "}");
-
   }
   arduinoArray.append("};\n\n#endif");
 
