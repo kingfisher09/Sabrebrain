@@ -15,6 +15,7 @@
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_MMC5603 mmc = Adafruit_MMC5603(12345);
 float read_mag();
+float angleDistance(float a, float b);
 
 LIS331 xl;  // accelerometer thing
 
@@ -177,10 +178,11 @@ void setup1() {
   }
 
   // set up mag
-  if (!mmc.begin(MMC56X3_DEFAULT_ADDRESS, &Wire)) {  // I2C mode
+  while (!mmc.begin(MMC56X3_DEFAULT_ADDRESS, &Wire)) {  // I2C mode
     Serial.println("Ooops, no MMC5603 detected ... Check your wiring!");
-    while (1) delay(10);
+    delay(500);
   }
+
   memcpy(LEDframe, image_aircraft_lights, sizeof(image_aircraft_lights));  // set the default image in memory
 
   /* Display some basic information on this sensor */
@@ -220,16 +222,16 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
       float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
       left_sig = spin + delta;
       right_sig = -spin + delta;
-
       paint_screen(angle);  // update screen
+    } else {                // if headmode, just keep spinnin
+      left_sig = spin;
+      right_sig = -spin;
     }
-    left_sig = spin;
-    right_sig = -spin;
 
   } else {  // normal robot mode
 
-    rainbow_line();     // draw rainbow
-    slip = slip * 0.1;  // reduce turning speed
+    rainbow_line();  // draw rainbow
+    // slip = slip * 0.1;  // reduce turning speed
 
     // normal driving with minimum motor speed
     left_sig = slip + trans;
@@ -290,16 +292,21 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
 
   if (mag_angle) {
     float heading = read_mag();  // update magnetometer
-    static float old_mag_angle = 0;
+    static float old_mag_heading = 0;
     static unsigned long last_mag_update = 0;
 
 
     angle = heading + mag_offset;
-    last_angle_time = micros();
+    last_angle_time = micros();  // needed on other loop
 
-    old_mag_angle = angle;                                                                           // record the last magnetic angle (not just the last angle)
-    zrotspd = 1000000 * abs(fmod(angle - old_mag_angle + 360, 360) / (micros() - last_mag_update));  // calculate rotational speed from mag angle change and time
-    last_mag_update = micros();
+    float heading_change = angleDistance(heading, old_mag_heading);
+
+    if (heading_change > 5) {                                             // wait until heading has changed by at least 5 degrees before calc speed
+      zrotspd = 1000000 * heading_change / (micros() - last_mag_update);  // calculate rotational speed from mag angle change and time
+      old_mag_heading = heading;                                          // record the last magnetic angle (not just the last angle)
+      last_mag_update = micros();
+    }
+
   } else {
     if (xl.newXData()) {
       int16_t x, y, z;
@@ -325,13 +332,13 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     // Serial.println(zrot / 6);
     lastGpsUpdate = now;
     // Update the GPS telemetry data with the new values.
-    crsf.telemetryWriteGPS(0, head_delay, zrot * 6000 / 360, 0, accel_rad * 100 * correct, 0);
+    crsf.telemetryWriteGPS(0, head_delay, zrotspd * 6000 / 360, 0, accel_rad * 100 * correct, 0);
   }
 
   // # timing
   if (loopcount == 5000) {
-    Serial.println("Loop 1");
-    Serial.println(micros() - now);
+    // Serial.println("Loop 1");
+    // Serial.println(micros() - now);
     loopcount = 0;
   } else {
     loopcount += 1;

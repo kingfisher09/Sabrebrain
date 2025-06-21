@@ -101,3 +101,9 @@ float read_mag() {
 
   return heading;
 }
+
+
+float angleDistance(float a, float b) {
+  float diff = fmodf(fabsf(a - b), 360.0f);
+  return diff > 180.0f ? 360.0f - diff : diff;
+}
