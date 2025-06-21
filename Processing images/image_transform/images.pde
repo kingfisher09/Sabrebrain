@@ -13,6 +13,14 @@ void draw_outer_ring() {
   rectGraphic.ellipse(0, 0, 480, 480);
 }
 
+void draw_arc_segment() {
+  rectGraphic.pushStyle();
+  rectGraphic.fill(255, 0, 0);       // Red fill
+  rectGraphic.noStroke();            // No outline
+  rectGraphic.arc(0, 0, 480, 480, radians(85), radians(95), PIE);
+  rectGraphic.popStyle();
+}
+
 void draw_white_flash() {
   rectGraphic.fill(255, 255, 255);
   rectGraphic.noStroke();

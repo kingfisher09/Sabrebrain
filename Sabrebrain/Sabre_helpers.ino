@@ -15,7 +15,9 @@ int powerCurve(int x) {
 }
 
 float servoTothoucentage(int servoSignal, int stickmode) {
-  // Map the servo signal to the range of -1000 to +1000, provide deazone = 1 for a channel with 1000 being default, deazone 2 for 1500 default
+  // Map the servo signal to the range of -1000 to +1000 or 0 to 1000, provide deazone
+  // stickmode 0 for a channel between -1000 and 1000, 1 for channel between 0 and 1000
+
   int lower;
   if (stickmode == 0) {  // deadzones
     lower = 0;
@@ -69,7 +71,8 @@ void updateCRSF() {
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * correct_max) + 1;
   headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
   head_delay = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
-  mag_angle = crsf.rcToUs(crsf.getChannel(MAG_CH)) < 1500;  // turn mag on or off
+  mag_speed_calc = crsf.rcToUs(crsf.getChannel(MAG_CH)) < 1500;  // turn mag on or off
+  // flip_rot_direction = crsf.rcToUs(crsf.getChannel(MAG_CH)) < 1500;  // turn mag on or off
 }
 
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
@@ -82,7 +85,7 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistic
   int lqi = linkStatistics.lqi;
   if (lqi < 10) {  // if link has dropped
     stopflag = true;
-    Serial.println(lqi);
+    // Serial.println(lqi);
   } else {
     stopflag = false;
   }
@@ -99,9 +102,15 @@ float read_mag() {
   // Normalize to 0-360
   heading = fmod(heading + 360, 360);
 
+  if (flip_rot_direction) {
+    heading = 360 - heading;
+  }
   return heading;
 }
 
+float wrap360(float angle) {
+  return fmodf(fmodf(angle, 360.0f) + 360.0f, 360.0f);
+}
 
 float angleDistance(float a, float b) {
   float diff = fmodf(fabsf(a - b), 360.0f);

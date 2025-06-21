@@ -11,11 +11,13 @@
 // images here:
 #include "image_pointer.h"
 #include "image_aircraft_lights.h"
+#include "image_fast.h"
 
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_MMC5603 mmc = Adafruit_MMC5603(12345);
 float read_mag();
 float angleDistance(float a, float b);
+float wrap360(float angle);
 
 LIS331 xl;  // accelerometer thing
 
@@ -27,18 +29,20 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 // settings
 int deadzone = 30;   // for transmitter sticks
 int max_head = 360;  // max heading change in deg/s
-int cutoff = 0;      // for handling of spinner (making it run straight), this seems to be unused
 int oneshot_Freq = 3500;
 int speed_int = 300;       // miliseconds between speed measurements
 int head_delay = 17;       // 17 seems good for v4, may need to be adjusted in future
-float correct_max = -0.2;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+float correct_max = -0.1;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 int min_drive = 80;
 const int rainbow_delay = 40;
 
 // Robot stuff
-const float accel_rad = 74.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 75.0 / 1000.0;  // input in mm, outputs m
+bool flip_rot_direction = true;         // false for rotating with compass, true for against compass
 #define RIGHT_MOTOR_DIRECTION -1
 #define LEFT_MOTOR_DIRECTION -1
+#define TRANS_SIGN -1  // swap translate direction
+#define SLIP_SIGN -1   // swap slip direction
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
@@ -53,6 +57,7 @@ const int NUM_LEDS = 23;
 const float NUM_SLICES = 150;  // the 3 slice settings all need to be float for the calculations to work
 const float slice_size = 360 / NUM_SLICES;
 const float half_slice = slice_size / 2;
+int bow_pos = 0;  // for keeping track of rainbow pixel
 
 CRGB LEDframe[(int)NUM_SLICES][(int)NUM_LEDS];  // 2d array to hold current LED frame
 CRGB leds[NUM_LEDS];                            // array to hold LED colours
@@ -69,7 +74,6 @@ float oneshot_Duty(int thoucentage, int dir_flip);
 void command_motors(int left, int right);
 
 // RF stuff
-// note channel 5 is used for shutdown so not in the list
 
 void updateCRSF();
 const int SLIP_CH = 1;
@@ -82,7 +86,6 @@ const int HEAD_MODE_CH = 7;
 const int DIR_CH = 8;  // used to correct heading offset
 const int LIGHT_CH = 9;
 const int EMOTE_CH = 10;  // used to trigger emote message
-
 
 bool stopflag = false;
 bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
@@ -98,7 +101,6 @@ float head = 0;
 float spin = 0;
 float correct = 1;
 bool headMode;
-bool mag_angle = true;
 
 // rotation tracking
 float angle = 0;                    // current robot angle
@@ -201,9 +203,9 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   static int loopcount = 0;      // # timing
 
   // angle calc
-  if (read_mag) {
+  if (mag_speed_calc) {
     zrot = zrotspd;
-    mag_offset -= (head / 3);  // adjust magnetic offset using stick
+    mag_offset = wrap360(mag_offset - (head / 200));  // adjust magnetic offset using stick
 
   } else {
     zrot = zrotspd - (head / 3);  // add in head for changing angle
@@ -219,7 +221,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
     if (!headMode) {  // spinning mode
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
-      float delta = (-trans * (abs(cosresult) > cutoff ? cosresult : 0)) - (slip * (abs(sinresult) > cutoff ? sinresult : 0));  // minus trans because that seems to be flipped
+      float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
       left_sig = spin + delta;
       right_sig = -spin + delta;
       paint_screen(angle);  // update screen
@@ -265,8 +267,6 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     if (spin == 0) {             // not spinning head mode
       angle = 0;                 // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
       mag_offset = -read_mag();  // sets mag offset when not spinning
-      Serial.print("Mag offset now: ");
-      Serial.println(mag_offset);
 
       for (int i = 0; i <= 3; i++) {
         fill_solid(leds, NUM_LEDS, CRGB::White);  // FastLED built-in function
@@ -290,7 +290,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     }
   }
 
-  if (mag_angle) {
+  if (mag_speed_calc) {
     float heading = read_mag();  // update magnetometer
     static float old_mag_heading = 0;
     static unsigned long last_mag_update = 0;
@@ -301,7 +301,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
 
     float heading_change = angleDistance(heading, old_mag_heading);
 
-    if (heading_change > 5) {                                             // wait until heading has changed by at least 5 degrees before calc speed
+    if (heading_change > 20) {                                            // wait until heading has changed by at least x degrees before calc speed
       zrotspd = 1000000 * heading_change / (micros() - last_mag_update);  // calculate rotational speed from mag angle change and time
       old_mag_heading = heading;                                          // record the last magnetic angle (not just the last angle)
       last_mag_update = micros();

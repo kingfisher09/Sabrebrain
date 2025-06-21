@@ -13,14 +13,14 @@ void paint_screen(float angle_in) {  // called by loop 0
   last_line = current_line;
   if (array_changed) {  // only run if array has changed. This will mess with timing a bit so remove with new LED strip
     FastLED.clear();
-    memcpy(leds, image_aircraft_lights[current_line], sizeof(leds));  // write line of LEDs to the LED array
+    memcpy(leds, image_fast[current_line], sizeof(leds));  // write line of LEDs to the LED array
     FastLED.show();
   }
+  bow_pos = 0; // means rainbow will always start at centre
 }
 
 void rainbow_line() {                          // called by loop 0 when not spinning
   static unsigned long lastRainbowUpdate = 0;  // variable to time rainbow
-  static int bow_pos = 0;                      // for keeping track of rainbow pixel
   static int dir = 1;
 
   unsigned long now = millis();
