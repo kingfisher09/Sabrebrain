@@ -10,8 +10,11 @@
 
 // images here:
 #include "image_pointer.h"
-#include "image_aircraft_lights.h"
-#include "image_fast.h"
+#include "image_pride.h"
+#include "image_taunt.h"
+#include "image_logo.h"
+#include "image_bitb.h"
+
 
 /* Assign a unique ID to this sensor at the same time */
 Adafruit_MMC5603 mmc = Adafruit_MMC5603(12345);
@@ -30,19 +33,22 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 int deadzone = 30;   // for transmitter sticks
 int max_head = 360;  // max heading change in deg/s
 int oneshot_Freq = 3500;
-int speed_int = 300;       // miliseconds between speed measurements
-int head_delay = 17;       // 17 seems good for v4, may need to be adjusted in future
-float correct_max = -0.1;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+int speed_int = 300;      // miliseconds between speed measurements
+int head_delay = 17;      // 17 seems good for v4, may need to be adjusted in future
+float correct_max = 0.0;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 int min_drive = 80;
 const int rainbow_delay = 40;
+const int flash_delay = 10;
+bool flash_now = false;  // whether currently doing a flash
 
 // Robot stuff
-const float accel_rad = 75.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 70.0 / 1000.0;  // input in mm, outputs m
 bool flip_rot_direction = true;         // false for rotating with compass, true for against compass
 #define RIGHT_MOTOR_DIRECTION -1
 #define LEFT_MOTOR_DIRECTION -1
 #define TRANS_SIGN -1  // swap translate direction
 #define SLIP_SIGN -1   // swap slip direction
+#define HEAD_CONTROL_SCALE 0.33
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
@@ -59,11 +65,13 @@ const float slice_size = 360 / NUM_SLICES;
 const float half_slice = slice_size / 2;
 int bow_pos = 0;  // for keeping track of rainbow pixel
 
-CRGB LEDframe[(int)NUM_SLICES][(int)NUM_LEDS];  // 2d array to hold current LED frame
-CRGB leds[NUM_LEDS];                            // array to hold LED colours
-void paint_screen();                            // function to control LEDs
+const CRGB (*current_image)[(int)NUM_LEDS] = nullptr;  // pointer that points at current image
+CRGB leds[NUM_LEDS];                                   // array to hold LED colours
+void paint_screen();                                   // function to control LEDs
 bool update_image = false;
 const int hue_change = round(255 / NUM_LEDS);  // make sure you get a full rainbow along the line
+void flash();
+void flashing();
 
 const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
 
@@ -76,6 +84,7 @@ void command_motors(int left, int right);
 // RF stuff
 
 void updateCRSF();
+void trim();
 const int SLIP_CH = 1;
 const int TRANS_CH = 2;
 const int SPIN_CH = 3;
@@ -85,7 +94,8 @@ const int CORRECT_CH = 6;  // used to correct accel radius
 const int HEAD_MODE_CH = 7;
 const int DIR_CH = 8;  // used to correct heading offset
 const int LIGHT_CH = 9;
-const int EMOTE_CH = 10;  // used to trigger emote message
+const int TRIM_CH = 10;   // used to trim rotation
+const int EMOTE_CH = 11;  // used to trigger emote message
 
 bool stopflag = false;
 bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
@@ -101,12 +111,18 @@ float head = 0;
 float spin = 0;
 float correct = 1;
 bool headMode;
+bool trimMode = false;
+float head_trim = 0;
+int image_mode;
+bool emote;
 
 // rotation tracking
 float angle = 0;                    // current robot angle
+float datum_angle = 0;              // last measured mag angle
 unsigned long last_angle_time = 0;  // program time when last angle was calculated
-float zrotspd = 0;                  // measured speed
-float zrot = 0;                     // measured speed with heading control injected
+unsigned long last_mag_update = 0;
+float zrotspd = 0;  // measured speed
+float zrot = 0;     // measured speed with heading control injected
 int16_t xoff = 0;
 int16_t yoff = 0;
 int16_t zoff = 0;
@@ -142,8 +158,8 @@ void setup() {
   // CRGB builtinLED[] = { CRGB(128, 128, 128) };
   // FastLED.addLeds<WS2812B, LED_PIN, GRB>(builtinLED, 1);
 
-  FastLED.addLeds<WS2812B, headPin, GRB>(leds, NUM_LEDS);  // connect to LED strip
-  FastLED.clear();                                         // ensure all LEDs start off
+  FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, NUM_LEDS);  // connect to LED strip
+  FastLED.clear();                                                   // ensure all LEDs start off
   FastLED.show();
 
   // initialise motors
@@ -185,8 +201,6 @@ void setup1() {
     delay(500);
   }
 
-  memcpy(LEDframe, image_aircraft_lights, sizeof(image_aircraft_lights));  // set the default image in memory
-
   /* Display some basic information on this sensor */
   mmc.printSensorDetails();
 
@@ -196,6 +210,8 @@ void setup1() {
   Serial.println("Thread 1 started");
   xoff = 10;
   yoff = 10;
+
+  current_image = image_logo;  // # change image
 }
 
 void loop() {                    // Loop 0 handles motor commands, angle calc and updating pixels
@@ -204,14 +220,14 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
 
   // angle calc
   if (mag_speed_calc) {
-    zrot = zrotspd;
     mag_offset = wrap360(mag_offset - (head / 200));  // adjust magnetic offset using stick
+    angle = wrap360(datum_angle + ((micros() - last_mag_update) * zrotspd / 1000000));
 
   } else {
-    zrot = zrotspd - (head / 3);  // add in head for changing angle
+    zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;                     // add in head for changing angle
+    angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
+    last_angle_time = micros();
   }
-  angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
-  last_angle_time = micros();
 
 
   int left_sig, right_sig;
@@ -243,15 +259,6 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   }
 
   command_motors(left_sig, right_sig);
-
-  if (loopcount == 20000) {
-    // Serial.println("Loop 0");
-    // Serial.println(micros() - now);
-    // # timing
-    loopcount = 0;
-  } else {
-    loopcount += 1;
-  }
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading images
@@ -262,18 +269,18 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   static int loopcount = 0;  // # timing
 
   updateCRSF();  // update control
+  trim();
 
   if (headMode) {
-    if (spin == 0) {             // not spinning head mode
-      angle = 0;                 // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
-      mag_offset = -read_mag();  // sets mag offset when not spinning
+    if (spin == 0) {  // not spinning head mode
+      static unsigned long last_mag_set = 0;
 
-      for (int i = 0; i <= 3; i++) {
-        fill_solid(leds, NUM_LEDS, CRGB::White);  // FastLED built-in function
-        FastLED.show();
+      if ((millis() - last_mag_set) > 1000) {
+        angle = 0;                 // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
+        mag_offset = -read_mag();  // sets mag offset when not spinning
+        last_mag_set = millis();
+        flash();
       }
-      delay(300);
-      FastLED.clear();
 
     } else {                                      // spinning head mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
@@ -282,8 +289,10 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
       } else {  // doing it this way makes is to you have to release the button after the stick
         if (read_mag) {
           mag_offset = -read_mag();
+          flash();
         } else {
           angle = angle - head_change;
+          flash();
         }
         head_change = 0;
       }
@@ -293,17 +302,13 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   if (mag_speed_calc) {
     float heading = read_mag();  // update magnetometer
     static float old_mag_heading = 0;
-    static unsigned long last_mag_update = 0;
-
-
-    angle = heading + mag_offset;
-    last_angle_time = micros();  // needed on other loop
 
     float heading_change = angleDistance(heading, old_mag_heading);
 
-    if (heading_change > 20) {                                            // wait until heading has changed by at least x degrees before calc speed
+    if (heading_change > 0) {                                             // wait until heading has changed by at least x degrees before calc speed
       zrotspd = 1000000 * heading_change / (micros() - last_mag_update);  // calculate rotational speed from mag angle change and time
       old_mag_heading = heading;                                          // record the last magnetic angle (not just the last angle)
+      datum_angle = heading + mag_offset;
       last_mag_update = micros();
     }
 
@@ -335,12 +340,16 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     crsf.telemetryWriteGPS(0, head_delay, zrotspd * 6000 / 360, 0, accel_rad * 100 * correct, 0);
   }
 
-  // # timing
-  if (loopcount == 5000) {
-    // Serial.println("Loop 1");
-    // Serial.println(micros() - now);
-    loopcount = 0;
-  } else {
-    loopcount += 1;
+  // choose image # change image
+  current_image = image_bitb;
+  if (image_mode < 1750) {current_image = image_pride;}
+  if (image_mode < 1250) {current_image = image_logo;}
+  if (emote){current_image = image_taunt;}
+
+
+  // flash annimation
+  if (flash_now) {
+    flashing();
   }
+
 }
