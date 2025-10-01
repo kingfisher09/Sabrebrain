@@ -1,8 +1,16 @@
 void command_motors(int left, int right) {
 
-  if (stopflag) {  // E-stop
+  unsigned long nowish = micros();
+  if (nowish - stopflag_time > E_stop_time) {  // E-stop, lost signal from transmitter
     right = 0;
     left = 0;
+  } else {
+    if watchdog_enabled {
+      watchdog_update();
+    } else if (nowish > E_stop_time){  // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
+      watchdog_enable(watchdog_time, 0);
+      watchdog_enabled = true;
+    }
   }
   motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left, LEFT_MOTOR_DIRECTION));
   motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right, RIGHT_MOTOR_DIRECTION));
@@ -108,11 +116,9 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistic
     - Signal-to-Noise Ratio (dBm)
     - Transmitter Power (mW) */
   int lqi = linkStatistics.lqi;
-  if (lqi < 10) {  // if link has dropped
-    stopflag = true;
+  if (lqi > 10) {  // if link is healthy
+    stopflag_time = millis();
     // Serial.println(lqi);
-  } else {
-    stopflag = false;
   }
 }
 

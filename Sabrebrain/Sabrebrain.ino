@@ -7,6 +7,10 @@
 #include <FastLED.h>
 #include <Adafruit_MMC56x3.h>
 #include <math.h>
+extern "C" {
+  #include <hardware/watchdog.h>
+}
+
 
 // images here:
 #include "image_pointer.h"
@@ -50,6 +54,7 @@ bool flip_rot_direction = true;         // false for rotating with compass, true
 #define SLIP_SIGN -1   // swap slip direction
 #define HEAD_CONTROL_SCALE 0.33
 
+
 // pins
 const int MOTOR_RIGHT_PIN = 4;
 const int MOTOR_LEFT_PIN = 3;
@@ -82,7 +87,6 @@ float oneshot_Duty(int thoucentage, int dir_flip);
 void command_motors(int left, int right);
 
 // RF stuff
-
 void updateCRSF();
 void trim();
 const int SLIP_CH = 1;
@@ -97,7 +101,12 @@ const int LIGHT_CH = 9;
 const int TRIM_CH = 10;   // used to trim rotation
 const int EMOTE_CH = 11;  // used to trigger emote message
 
-bool stopflag = false;
+// safety stuff
+unsigned long stopflag_time = 0;
+int E_stop_time = 100; // ms allowed between ELRS signals before shutting down motors
+int watchdog_time = 1000; // ms after E_stop before resetting MCU
+bool watchdog_enabled = False;  // bool to record watchdog status. Watchdog will be enabled when transmitter first sends data, MCU will restart 1s after estop if no more signals are received
+
 bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
 float mag_offset;            // holds the difference between 0 degrees bearing and 0 degrees for robot
 
