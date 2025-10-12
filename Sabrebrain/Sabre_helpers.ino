@@ -1,15 +1,15 @@
 void command_motors(int left, int right) {
-
-  unsigned long nowish = micros();
+  unsigned long nowish = millis();
   if (nowish - stopflag_time > E_stop_time) {  // E-stop, lost signal from transmitter
     right = 0;
     left = 0;
   } else {
-    if watchdog_enabled {
+    if (watchdog_enabled) {
       watchdog_update();
     } else if (nowish > E_stop_time){  // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
       watchdog_enable(watchdog_time, 0);
       watchdog_enabled = true;
+      watchdog_update();
     }
   }
   motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left, LEFT_MOTOR_DIRECTION));

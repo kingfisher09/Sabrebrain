@@ -105,7 +105,7 @@ const int EMOTE_CH = 11;  // used to trigger emote message
 unsigned long stopflag_time = 0;
 int E_stop_time = 100; // ms allowed between ELRS signals before shutting down motors
 int watchdog_time = 1000; // ms after E_stop before resetting MCU
-bool watchdog_enabled = False;  // bool to record watchdog status. Watchdog will be enabled when transmitter first sends data, MCU will restart 1s after estop if no more signals are received
+bool watchdog_enabled = false;  // bool to record watchdog status. Watchdog will be enabled when transmitter first sends data, MCU will restart 1s after estop if no more signals are received
 
 bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
 float mag_offset;            // holds the difference between 0 degrees bearing and 0 degrees for robot
