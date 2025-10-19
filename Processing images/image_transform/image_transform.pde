@@ -1,8 +1,17 @@
-int numAngles = 150; // Number of angle slices (e.g., LEDs per ring)
-int numLEDs = 23;
+import gifAnimation.*;
+Gif gif;
+
+int numAngles = 150; // angular resolution — e.g. number of steps in one rotation
+int numLEDs = 23;    // how many LEDs per spoke/radius
 int numRadii = numLEDs + 1;  // Number of radial slices +1 because we calculate the center but don't use it
 String image_name = "";
-float[][][] polarData = new float[numAngles][numRadii][3]; // 3D array for [angle][radius][RGB]
+
+String defaultFontPath = "C:\\WINDOWS\\FONTS\\BRLNSR.TTF";
+float defaultFontSize  = 120;
+
+Scene currentScene;
+HashMap<String, Scene> scenes = new HashMap<String, Scene>();
+;
 
 PGraphics rectGraphic; // For the rectangular graphic
 PGraphics polarGraphic; // For the polar-transformed graphic
@@ -10,18 +19,25 @@ int canvas_size = 500;
 int canv_centre = canvas_size/2;
 color[][] output_array = new color[numAngles][0];
 
+
+ArrayList<Element> elements = new ArrayList<Element>();  // array to hold drawing elements
+
 void setup() {
   size(1000, 500); // One window, split into two halves
   rectGraphic = createGraphics(canvas_size, canvas_size); // Rectangular graphic
   polarGraphic = createGraphics(canvas_size, canvas_size); // Polar-transformed graphic
-
-  createRectGraphic();
-  createPolarGraphic();
-  savePolarPoints();
+  createScenes();
+  currentScene = scenes.get("hush_gif");  // <------------------ Scene input here!
+  //createRectGraphic();
+  //createPolarGraphic();
+  //savePolarPoints();
 }
 
 void draw() {
   background(0);
+  createRectGraphic();
+  createPolarGraphic();
+  //savePolarPoints();
 
   // Draw the rectangular graphic on the left
   image(rectGraphic, 0, 0);
@@ -33,25 +49,12 @@ void draw() {
 void createRectGraphic() {
   rectGraphic.beginDraw();
   rectGraphic.background(0);
-  rectGraphic.translate(canv_centre, canv_centre); // sets 0 at centre of canvas
-  rectGraphic.rotate(PI);
 
-
-  //  --------------------------------------------------------SETTINGS HERE --------------------------------------------------------
-  //wrapText("SABRETOOTH", 132, color(255, 0, 0));
-  //wrapText("HE HE HE", 165, color(0, 255, 0));
-  draw_arc_segment() ;
-  draw_outer_ring();
-  //image_name = "image_aircraft_lights";
-  image_name = "image_testing";
-  //draw_white_flash();
-  //draw_pointer_arrow();
-  //draw_image("C:\\Users\\ofish\\Pictures\\Sabrepic5.png");
-  //draw_image("C:\\Users\\ofish\\Pictures\\Aircraft lights.png");
-  draw_image("C:\\Users\\ofish\\Pictures\\Pride roundle.png");
+  // Draw whatever the current scene is
+  currentScene.draw(rectGraphic);
   rectGraphic.endDraw();
-  //  --------------------------------------------------------SETTINGS HERE --------------------------------------------------------
 }
+
 
 void createPolarGraphic() {
   polarGraphic.beginDraw();
@@ -102,36 +105,4 @@ void savePolarPoints() {
   saveStrings("C:\\Git\\Sabrebrain\\Sabrebrain\\" + image_name + ".h", new String[]{arduinoArray.toString()});
 
   println("Byte array saved!");
-}
-
-void wrapText(String txt, float start_angle, color text_col) {
-  float angleStep = radians(30);
-  float radius = 130;
-
-  PFont boldFont;
-  String fontlink = "C:\\WINDOWS\\FONTS\\BRLNSR.TTF";
-  boldFont = createFont(fontlink, 120); // Load the bold font from the data folder
-  rectGraphic.textFont(boldFont);
-  rectGraphic.fill(text_col);
-
-  for (int i = 0; i < txt.length(); i++) {
-    char letter = txt.charAt(i);
-    float angle = radians(start_angle) + angleStep * i; // Adjust for starting position at the top
-
-    // Calculate position on the circle
-    float x = cos(angle) * radius;
-    float y = sin(angle) * radius;
-
-    // Save current transformation state
-    rectGraphic.pushMatrix();
-
-    // Translate and rotate to align text with curve
-    rectGraphic.textAlign(CENTER);
-    rectGraphic.translate(x, y);
-    rectGraphic.rotate(angle + HALF_PI); // Rotate to align with tangent
-    rectGraphic.text(letter, 0, 0); // Draw character
-
-    // Restore transformation state
-    rectGraphic.popMatrix();
-  }
 }
