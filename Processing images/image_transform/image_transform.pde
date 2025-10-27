@@ -28,9 +28,6 @@ void setup() {
   polarGraphic = createGraphics(canvas_size, canvas_size); // Polar-transformed graphic
   createScenes();
   currentScene = scenes.get("hush_gif");  // <------------------ Scene input here!
-  //createRectGraphic();
-  //createPolarGraphic();
-  //savePolarPoints();
 }
 
 void draw() {
