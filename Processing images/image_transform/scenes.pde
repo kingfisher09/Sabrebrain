@@ -53,10 +53,13 @@ class Scene {
 
 void createScenes() {
 
-  //// Pride image scene
-  //Scene pride_image = new Scene();
-  //pride_image.add(new ImageElement("C:\\Users\\ofish\\Pictures\\\\Sabretooth\\Pride roundle.png", 1.0));
-  //scenes.put("pride_image", pride_image);
+  // Pumpkin image scene
+  Scene pumpkin_image = new Scene();
+  GifElement pumpGif = new GifElement(this, "C:\\Users\\ofish\\Pictures\\Sabretooth\\Haloween\\First test.gif");
+  // Add the element to the scene timeline (start, finish in milliseconds)
+  pumpkin_image.add(pumpGif, 0, -1);  //
+  scenes.put("pumpkin_image", pumpkin_image);
+  // Pumpkin image scene
 
 
   // Hush Gif scene
@@ -92,6 +95,7 @@ void createScenes() {
     hushGifScene.add(letterElement, appear, disappear);
   }
 
-  hushGifScene.add(new FlashElement(color(255,255,255)), hushGif.duration, hushGif.duration + 500); 
+  hushGifScene.add(new FlashElement(color(255, 255, 255)), hushGif.duration, hushGif.duration + 500);
   scenes.put("hush_gif", hushGifScene);
+  // Hush Gif scene
 }

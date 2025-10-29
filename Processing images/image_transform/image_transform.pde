@@ -1,5 +1,7 @@
 import gifAnimation.*;
+import processing.video.*;
 Gif gif;
+Movie myVideo;
 
 int numAngles = 150; // angular resolution — e.g. number of steps in one rotation
 int numLEDs = 23;    // how many LEDs per spoke/radius
@@ -19,15 +21,25 @@ int canvas_size = 500;
 int canv_centre = canvas_size/2;
 color[][] output_array = new color[numAngles][0];
 
-
 ArrayList<Element> elements = new ArrayList<Element>();  // array to hold drawing elements
+
+
+boolean video = true; // <----------------------- Video on/off here
 
 void setup() {
   size(1000, 500); // One window, split into two halves
   rectGraphic = createGraphics(canvas_size, canvas_size); // Rectangular graphic
   polarGraphic = createGraphics(canvas_size, canvas_size); // Polar-transformed graphic
-  createScenes();
-  currentScene = scenes.get("hush_gif");  // <------------------ Scene input here!
+
+
+  if (video) {
+    myVideo = new Movie(this, "C:\\Users\\ofish\\Pictures\\Sabretooth\\Haloween\\Haloween no dog.mp4");
+    myVideo.loop();  // plays and loops automatically
+    println("loaded");
+  } else {
+    createScenes();
+    currentScene = scenes.get("pumpkin_image");  // <------------------ Scene input here!
+  }
 }
 
 void draw() {
@@ -47,10 +59,18 @@ void createRectGraphic() {
   rectGraphic.beginDraw();
   rectGraphic.background(0);
 
-  // Draw whatever the current scene is
-  currentScene.draw(rectGraphic);
+  if (video) {
+    if (myVideo.available()) {
+      myVideo.read();
+    }
+    rectGraphic.image(myVideo, 0, 0, canvas_size, canvas_size);
+  } else {
+    currentScene.draw(rectGraphic);
+  }
+
   rectGraphic.endDraw();
 }
+
 
 
 void createPolarGraphic() {
