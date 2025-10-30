@@ -1,19 +1,17 @@
-import gifAnimation.*;
 import processing.video.*;
-Gif gif;
 Movie myVideo;
 
 int numAngles = 150; // angular resolution — e.g. number of steps in one rotation
 int numLEDs = 23;    // how many LEDs per spoke/radius
 int numRadii = numLEDs + 1;  // Number of radial slices +1 because we calculate the center but don't use it
-String image_name = "";
 
-String defaultFontPath = "C:\\WINDOWS\\FONTS\\BRLNSR.TTF";
-float defaultFontSize  = 120;
+String image_name = "haloween_vid";
+String video_path = "C:\\Users\\ofish\\Pictures\\Sabretooth\\Haloween\\Haloween no dog.mp4";
 
-Scene currentScene;
-HashMap<String, Scene> scenes = new HashMap<String, Scene>();
-;
+//String image_name = "bouncing_pumpkin";
+//String video_path = "C:\\Users\\ofish\\Pictures\\Sabretooth\\Haloween\\Bouncing pumpkin.mp4";
+
+boolean record = true;
 
 PGraphics rectGraphic; // For the rectangular graphic
 PGraphics polarGraphic; // For the polar-transformed graphic
@@ -21,57 +19,58 @@ int canvas_size = 500;
 int canv_centre = canvas_size/2;
 color[][] output_array = new color[numAngles][0];
 
-ArrayList<Element> elements = new ArrayList<Element>();  // array to hold drawing elements
 
-
-boolean video = true; // <----------------------- Video on/off here
 
 void setup() {
   size(1000, 500); // One window, split into two halves
   rectGraphic = createGraphics(canvas_size, canvas_size); // Rectangular graphic
   polarGraphic = createGraphics(canvas_size, canvas_size); // Polar-transformed graphic
 
-
-  if (video) {
-    myVideo = new Movie(this, "C:\\Users\\ofish\\Pictures\\Sabretooth\\Haloween\\Haloween no dog.mp4");
-    myVideo.loop();  // plays and loops automatically
-    println("loaded");
+  myVideo = new Movie(this, video_path);
+  if (record) {
+    myVideo.play();
   } else {
-    createScenes();
-    currentScene = scenes.get("pumpkin_image");  // <------------------ Scene input here!
+    myVideo.loop();  // plays and loops automatically
   }
+  println("loaded");
+  println("Frame rate: " + myVideo.frameRate);
 }
 
 void draw() {
-  background(0);
-  createRectGraphic();
-  createPolarGraphic();
-  //savePolarPoints();
+  if (myVideo.available()) {
+    background(0);
+    createRectGraphic();
+    createPolarGraphic();
 
-  // Draw the rectangular graphic on the left
-  image(rectGraphic, 0, 0);
+    if (record) {
+      captureAndExportFrame();
+    }
 
-  // Draw the polar-transformed graphic on the right
-  image(polarGraphic, canvas_size, 0);
+    // Draw the rectangular graphic on the left
+    image(rectGraphic, 0, 0);
+
+    // Draw the polar-transformed graphic on the right
+    image(polarGraphic, canvas_size, 0);
+  }
+  
+  if (record) {
+    if (myVideo.time() >= myVideo.duration()) {
+      println("Video finished, saving");
+      String outPath = "C:\\Git\\Sabrebrain\\Sabrebrain" + File.separator + image_name + ".h";
+      writePOVExport(image_name, outPath, Math.round(1000.0 / myVideo.frameRate));
+      noLoop();
+    }
+  }
 }
 
 void createRectGraphic() {
+
   rectGraphic.beginDraw();
   rectGraphic.background(0);
-
-  if (video) {
-    if (myVideo.available()) {
-      myVideo.read();
-    }
-    rectGraphic.image(myVideo, 0, 0, canvas_size, canvas_size);
-  } else {
-    currentScene.draw(rectGraphic);
-  }
-
+  myVideo.read();
+  rectGraphic.image(myVideo, 0, 0, canvas_size, canvas_size);
   rectGraphic.endDraw();
 }
-
-
 
 void createPolarGraphic() {
   polarGraphic.beginDraw();
@@ -99,27 +98,4 @@ void createPolarGraphic() {
     }
   }
   polarGraphic.endDraw();
-}
-
-void savePolarPoints() {
-
-  // --------------- Convert to Arduino-compatible syntax ---------
-
-  StringBuilder arduinoArray = new StringBuilder();
-  arduinoArray.append("#ifndef " + image_name.toUpperCase() + "_H\n#define " + image_name.toUpperCase() + "_H\n\n");
-
-  arduinoArray.append("const CRGB " + image_name + "[" + numAngles + "][" + numLEDs + "] = {\n{");
-  for (int i = 0; i < output_array.length; i++) {
-    for (int j = 0; j < output_array[i].length; j++) {
-      arduinoArray.append("CRGB(" + (int)red(output_array[i][j]) + "," + (int)green(output_array[i][j]) + "," + (int)blue(output_array[i][j]) + ")");  // build CRGB from colour
-      if (j < output_array[i].length - 1) arduinoArray.append(", "); // Add commas between elements
-    }
-    arduinoArray.append((i < output_array.length - 1) ? "},\n{" : "}");
-  }
-  arduinoArray.append("};\n\n#endif");
-
-  // Save to a text file
-  saveStrings("C:\\Git\\Sabrebrain\\Sabrebrain\\" + image_name + ".h", new String[]{arduinoArray.toString()});
-
-  println("Byte array saved!");
 }
