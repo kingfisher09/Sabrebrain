@@ -79,7 +79,6 @@ void updateCRSF() {
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * -correct_max) + 1;
   headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
   head_delay = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
-  mag_speed_calc = crsf.rcToUs(crsf.getChannel(MAG_CH)) < 1500;  // turn mag on or off
   trimMode = crsf.rcToUs(crsf.getChannel(TRIM_CH)) > 1500;
   image_mode = crsf.rcToUs(crsf.getChannel(LIGHT_CH));
   emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
@@ -103,9 +102,7 @@ void trim() {
     }
   }
 
-  if (mag_speed_calc) {
-    head_trim = 0;  // reset trim on switch to mag mode
-  }
+
 }
 
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
@@ -120,23 +117,6 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistic
     stopflag_time = millis();
     // Serial.println(lqi);
   }
-}
-
-float read_mag() {
-  /* Get a new sensor event */
-  sensors_event_t event;
-  mmc.getEvent(&event);
-
-  // Calculate the angle of the vector y,x
-  float heading = (atan2(event.magnetic.y, event.magnetic.x) * 180) / PI;
-
-  // Normalize to 0-360
-  heading = fmod(heading + 360, 360);
-
-  if (flip_rot_direction) {
-    heading = 360 - heading;
-  }
-  return heading;
 }
 
 float wrap360(float angle) {

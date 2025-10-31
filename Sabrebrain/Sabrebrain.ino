@@ -5,10 +5,9 @@
 #include "SparkFun_LIS331.h"
 #include <Wire.h>
 #include <FastLED.h>
-#include <Adafruit_MMC56x3.h>
 #include <math.h>
 extern "C" {
-  #include <hardware/watchdog.h>
+#include <hardware/watchdog.h>
 }
 
 
@@ -18,13 +17,6 @@ extern "C" {
 #include "image_taunt.h"
 #include "image_logo.h"
 #include "image_bitb.h"
-
-
-/* Assign a unique ID to this sensor at the same time */
-Adafruit_MMC5603 mmc = Adafruit_MMC5603(12345);
-float read_mag();
-float angleDistance(float a, float b);
-float wrap360(float angle);
 
 LIS331 xl;  // accelerometer thing
 
@@ -53,7 +45,6 @@ bool flip_rot_direction = true;         // false for rotating with compass, true
 #define TRANS_SIGN -1  // swap translate direction
 #define SLIP_SIGN -1   // swap slip direction
 #define HEAD_CONTROL_SCALE 0.33
-
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
@@ -93,7 +84,6 @@ const int SLIP_CH = 1;
 const int TRANS_CH = 2;
 const int SPIN_CH = 3;
 const int HEAD_CH = 4;
-const int MAG_CH = 5;      // used for deactivating magnetometer
 const int CORRECT_CH = 6;  // used to correct accel radius
 const int HEAD_MODE_CH = 7;
 const int DIR_CH = 8;  // used to correct heading offset
@@ -103,12 +93,9 @@ const int EMOTE_CH = 11;  // used to trigger emote message
 
 // safety stuff
 unsigned long stopflag_time = 0;
-int E_stop_time = 100; // ms allowed between ELRS signals before shutting down motors
-int watchdog_time = 1000; // ms after E_stop before resetting MCU
+int E_stop_time = 100;          // ms allowed between ELRS signals before shutting down motors
+int watchdog_time = 1000;       // ms after E_stop before resetting MCU
 bool watchdog_enabled = false;  // bool to record watchdog status. Watchdog will be enabled when transmitter first sends data, MCU will restart 1s after estop if no more signals are received
-
-bool mag_speed_calc = true;  // variable to control whether speed is calculated with magnetometer or accelerometer
-float mag_offset;            // holds the difference between 0 degrees bearing and 0 degrees for robot
 
 int powerCurve(int x);
 float servoTothoucentage(int servoSignal, int stickmode);
@@ -127,9 +114,7 @@ bool emote;
 
 // rotation tracking
 float angle = 0;                    // current robot angle
-float datum_angle = 0;              // last measured mag angle
 unsigned long last_angle_time = 0;  // program time when last angle was calculated
-unsigned long last_mag_update = 0;
 float zrotspd = 0;  // measured speed
 float zrot = 0;     // measured speed with heading control injected
 int16_t xoff = 0;
@@ -204,17 +189,6 @@ void setup1() {
     }
   }
 
-  // set up mag
-  while (!mmc.begin(MMC56X3_DEFAULT_ADDRESS, &Wire)) {  // I2C mode
-    Serial.println("Ooops, no MMC5603 detected ... Check your wiring!");
-    delay(500);
-  }
-
-  /* Display some basic information on this sensor */
-  mmc.printSensorDetails();
-
-  mmc.setDataRate(1000);  // in Hz, from 1-255 or 1000
-  mmc.setContinuousMode(true);
 
   Serial.println("Thread 1 started");
   xoff = 10;
@@ -228,15 +202,10 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   static int loopcount = 0;      // # timing
 
   // angle calc
-  if (mag_speed_calc) {
-    mag_offset = wrap360(mag_offset - (head / 200));  // adjust magnetic offset using stick
-    angle = wrap360(datum_angle + ((micros() - last_mag_update) * zrotspd / 1000000));
+  zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;                     // add in head for changing angle
+  angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
+  last_angle_time = micros();
 
-  } else {
-    zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;                     // add in head for changing angle
-    angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
-    last_angle_time = micros();
-  }
 
 
   int left_sig, right_sig;
@@ -282,62 +251,37 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
 
   if (headMode) {
     if (spin == 0) {  // not spinning head mode
-      static unsigned long last_mag_set = 0;
 
-      if ((millis() - last_mag_set) > 1000) {
-        angle = 0;                 // allows user to press headmode button to set forwards when not spinning, lights will flash and drive will stop momentarily
-        mag_offset = -read_mag();  // sets mag offset when not spinning
-        last_mag_set = millis();
-        flash();
-      }
 
     } else {                                      // spinning head mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
       if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
         head_change = degrees(atan2(-slip, trans));
       } else {  // doing it this way makes is to you have to release the button after the stick
-        if (read_mag) {
-          mag_offset = -read_mag();
-          flash();
-        } else {
-          angle = angle - head_change;
-          flash();
-        }
+
+        angle = angle - head_change;
+        flash();
+
         head_change = 0;
       }
     }
   }
 
-  if (mag_speed_calc) {
-    float heading = read_mag();  // update magnetometer
-    static float old_mag_heading = 0;
+  if (xl.newXData()) {
+    int16_t x, y, z;
+    xl.readAxes(x, y, z);
+    x = x + xoff;
+    y = y + yoff;
+    float xg = xl.convertToG(200, x);
+    float yg = xl.convertToG(200, y);
 
-    float heading_change = angleDistance(heading, old_mag_heading);
+    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
 
-    if (heading_change > 0) {                                             // wait until heading has changed by at least x degrees before calc speed
-      zrotspd = 1000000 * heading_change / (micros() - last_mag_update);  // calculate rotational speed from mag angle change and time
-      old_mag_heading = heading;                                          // record the last magnetic angle (not just the last angle)
-      datum_angle = heading + mag_offset;
-      last_mag_update = micros();
-    }
+    // FILTER ACCEL
+    float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
+    prev_filt_val = filtered_accel;
 
-  } else {
-    if (xl.newXData()) {
-      int16_t x, y, z;
-      xl.readAxes(x, y, z);
-      x = x + xoff;
-      y = y + yoff;
-      float xg = xl.convertToG(200, x);
-      float yg = xl.convertToG(200, y);
-
-      float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
-
-      // FILTER ACCEL
-      float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
-      prev_filt_val = filtered_accel;
-
-      zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
-    }
+    zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
   }
 
   // Telemetry stuff
@@ -351,14 +295,13 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
 
   // choose image # change image
   current_image = image_bitb;
-  if (image_mode < 1750) {current_image = image_pride;}
-  if (image_mode < 1250) {current_image = image_logo;}
-  if (emote){current_image = image_taunt;}
+  if (image_mode < 1750) { current_image = image_pride; }
+  if (image_mode < 1250) { current_image = image_logo; }
+  if (emote) { current_image = image_taunt; }
 
 
   // flash annimation
   if (flash_now) {
     flashing();
   }
-
 }
