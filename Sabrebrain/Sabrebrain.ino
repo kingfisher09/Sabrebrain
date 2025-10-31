@@ -1,5 +1,6 @@
 // Software for melty brain robot written by Owen Fisher 2024-25
 
+#include "sabre_Config.h"
 #include "CRSFforArduino.hpp"
 #include "RP2040_PWM.h"
 #include "SparkFun_LIS331.h"
@@ -9,14 +10,17 @@
 extern "C" {
 #include <hardware/watchdog.h>
 }
-
+#include "sabre_Vid.h"  // needed for struct for videos
+#include <utility>
 
 // images here:
-#include "image_pointer.h"
 #include "image_pride.h"
 #include "image_taunt.h"
 #include "image_logo.h"
-#include "image_bitb.h"
+
+// videos here:
+#include "bouncing_pumpkin.h"
+#include "haloween_vid.h"
 
 LIS331 xl;  // accelerometer thing
 
@@ -55,15 +59,32 @@ const int headPin = 27;    // LED heading data pin
 const int headClock = 28;  // LED clock pin
 
 // Sabrescreen stuff
-const int NUM_LEDS = 23;
-const float NUM_SLICES = 150;  // the 3 slice settings all need to be float for the calculations to work
-const float slice_size = 360 / NUM_SLICES;
-const float half_slice = slice_size / 2;
+
+const int NUM_LEDS = SABRE_NUM_LEDS;
+const int NUM_ANGLES = SABRE_NUM_ANGLES;  // the 3 slice settings all need to be float for the calculations to work
+const float slice_size = 360.0f  / NUM_ANGLES;
+const float half_slice = slice_size / 2.0f;
 int bow_pos = 0;  // for keeping track of rainbow pixel
 
-const CRGB (*current_image)[(int)NUM_LEDS] = nullptr;  // pointer that points at current image
-CRGB leds[NUM_LEDS];                                   // array to hold LED colours
-void paint_screen();                                   // function to control LEDs
+using Row = CRGB[NUM_LEDS];
+Row bufferA[NUM_ANGLES] = { 0 };
+Row bufferB[NUM_ANGLES] = { 0 };
+
+Row* current_frame = bufferA;
+Row* next_frame = bufferB;
+
+const SabreVid* current_vid = nullptr;  // pointer to whichever video is active. Const because we never write to what the pointer is pointing at
+
+int frame_duration;
+int frame_num;
+int num_frames;
+unsigned long frame_time;
+
+void load_vid(const SabreVid& video);
+void load_frame();
+
+CRGB leds[NUM_LEDS];  // array to hold LED colours
+void paint_screen();  // function to control LEDs
 bool update_image = false;
 const int hue_change = round(255 / NUM_LEDS);  // make sure you get a full rainbow along the line
 void flash();
@@ -72,8 +93,8 @@ void flashing();
 const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
 
 // motors
-RP2040_PWM *motor_Right;
-RP2040_PWM *motor_Left;
+RP2040_PWM* motor_Right;
+RP2040_PWM* motor_Left;
 float oneshot_Duty(int thoucentage, int dir_flip);
 void command_motors(int left, int right);
 
@@ -115,8 +136,8 @@ bool emote;
 // rotation tracking
 float angle = 0;                    // current robot angle
 unsigned long last_angle_time = 0;  // program time when last angle was calculated
-float zrotspd = 0;  // measured speed
-float zrot = 0;     // measured speed with heading control injected
+float zrotspd = 0;                  // measured speed
+float zrot = 0;                     // measured speed with heading control injected
 int16_t xoff = 0;
 int16_t yoff = 0;
 int16_t zoff = 0;
@@ -194,7 +215,8 @@ void setup1() {
   xoff = 10;
   yoff = 10;
 
-  current_image = image_logo;  // # change image
+  // load_vid(bouncing_pumpkin);
+  load_vid(haloween_vid);
 }
 
 void loop() {                    // Loop 0 handles motor commands, angle calc and updating pixels
@@ -205,8 +227,6 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;                     // add in head for changing angle
   angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   last_angle_time = micros();
-
-
 
   int left_sig, right_sig;
 
@@ -293,12 +313,13 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     crsf.telemetryWriteGPS(0, head_delay, zrotspd * 6000 / 360, 0, accel_rad * 100 * correct, 0);
   }
 
-  // choose image # change image
-  current_image = image_bitb;
-  if (image_mode < 1750) { current_image = image_pride; }
-  if (image_mode < 1250) { current_image = image_logo; }
-  if (emote) { current_image = image_taunt; }
-
+  if (!emote) {
+    // play annimation
+    load_frame();
+  } else {
+    memcpy(current_frame, image_taunt, sizeof(image_taunt));
+    frame_num = -1;
+  }
 
   // flash annimation
   if (flash_now) {

@@ -112,8 +112,7 @@ void writePOVExport(String imageName, String outPath, int frame_time) {
   sb.append("const uint16_t " + imageName + "_NUM_ANGLES = " + numAngles + ";\n");
   sb.append("const uint16_t " + imageName + "_NUM_RADII  = " + numRadii  + ";\n");
   sb.append("const uint16_t " + imageName + "_NUM_FRAMES = " + frameMasks.size() + ";\n");
-  sb.append("const uint16_t " + imageName + "_FRAME_DURATION_MS = " + frame_time + ";\n");
-  sb.append("const uint16_t " + imageName + "_MASK_BYTES_PER_FRAME = (" + pixelsPerFrame + " * 2 + 7) / 8;\n\n");
+  sb.append("const uint16_t " + imageName + "_FRAME_DURATION_MS = " + frame_time + ";\n\n");
 
   sb.append("// 2-bit modes: 00=new, 01=prevFrame, 10=prevPixel, 11=prevRow\n");
   sb.append("#define POV_MODE_NEW        0x0\n");
@@ -166,7 +165,6 @@ void writePOVExport(String imageName, String outPath, int frame_time) {
   sb.append("  " + imageName + "_NUM_RADII,\n");
   sb.append("  " + imageName + "_NUM_FRAMES,\n");
   sb.append("  " + imageName + "_FRAME_DURATION_MS,\n");
-  sb.append("  " + imageName + "_MASK_BYTES_PER_FRAME,\n");
   sb.append("  " + imageName + "_masks,\n");
   sb.append("  " + imageName + "_diffs\n");
   sb.append("};\n\n");
