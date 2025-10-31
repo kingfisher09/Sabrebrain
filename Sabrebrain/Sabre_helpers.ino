@@ -1,8 +1,16 @@
 void command_motors(int left, int right) {
-
-  if (stopflag) {  // E-stop
+  unsigned long nowish = millis();
+  if (nowish - stopflag_time > E_stop_time) {  // E-stop, lost signal from transmitter
     right = 0;
     left = 0;
+  } else {
+    if (watchdog_enabled) {
+      watchdog_update();
+    } else if (nowish > E_stop_time){  // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
+      watchdog_enable(watchdog_time, 0);
+      watchdog_enabled = true;
+      watchdog_update();
+    }
   }
   motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left, LEFT_MOTOR_DIRECTION));
   motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right, RIGHT_MOTOR_DIRECTION));
@@ -71,7 +79,6 @@ void updateCRSF() {
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * -correct_max) + 1;
   headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
   head_delay = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
-  mag_speed_calc = crsf.rcToUs(crsf.getChannel(MAG_CH)) < 1500;  // turn mag on or off
   trimMode = crsf.rcToUs(crsf.getChannel(TRIM_CH)) > 1500;
   image_mode = crsf.rcToUs(crsf.getChannel(LIGHT_CH));
   emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
@@ -95,9 +102,7 @@ void trim() {
     }
   }
 
-  if (mag_speed_calc) {
-    head_trim = 0;  // reset trim on switch to mag mode
-  }
+
 }
 
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
@@ -108,29 +113,10 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistic
     - Signal-to-Noise Ratio (dBm)
     - Transmitter Power (mW) */
   int lqi = linkStatistics.lqi;
-  if (lqi < 10) {  // if link has dropped
-    stopflag = true;
+  if (lqi > 10) {  // if link is healthy
+    stopflag_time = millis();
     // Serial.println(lqi);
-  } else {
-    stopflag = false;
   }
-}
-
-float read_mag() {
-  /* Get a new sensor event */
-  sensors_event_t event;
-  mmc.getEvent(&event);
-
-  // Calculate the angle of the vector y,x
-  float heading = (atan2(event.magnetic.y, event.magnetic.x) * 180) / PI;
-
-  // Normalize to 0-360
-  heading = fmod(heading + 360, 360);
-
-  if (flip_rot_direction) {
-    heading = 360 - heading;
-  }
-  return heading;
 }
 
 float wrap360(float angle) {
