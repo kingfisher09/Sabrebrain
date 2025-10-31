@@ -14,13 +14,12 @@ extern "C" {
 #include <utility>
 
 // images here:
-#include "image_pride.h"
 #include "image_taunt.h"
-#include "image_logo.h"
 
 // videos here:
 #include "bouncing_pumpkin.h"
 #include "haloween_vid.h"
+#include "sabremation.h"
 
 LIS331 xl;  // accelerometer thing
 
@@ -62,7 +61,7 @@ const int headClock = 28;  // LED clock pin
 
 const int NUM_LEDS = SABRE_NUM_LEDS;
 const int NUM_ANGLES = SABRE_NUM_ANGLES;  // the 3 slice settings all need to be float for the calculations to work
-const float slice_size = 360.0f  / NUM_ANGLES;
+const float slice_size = 360.0f / NUM_ANGLES;
 const float half_slice = slice_size / 2.0f;
 int bow_pos = 0;  // for keeping track of rainbow pixel
 
@@ -89,6 +88,10 @@ bool update_image = false;
 const int hue_change = round(255 / NUM_LEDS);  // make sure you get a full rainbow along the line
 void flash();
 void flashing();
+
+int sel_video = 0;
+
+// End Sabrescreen stuff
 
 const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
 
@@ -215,7 +218,7 @@ void setup1() {
   xoff = 10;
   yoff = 10;
 
-  // load_vid(bouncing_pumpkin);
+  load_vid(bouncing_pumpkin);
   load_vid(haloween_vid);
 }
 
@@ -311,6 +314,22 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     lastGpsUpdate = now;
     // Update the GPS telemetry data with the new values.
     crsf.telemetryWriteGPS(0, head_delay, zrotspd * 6000 / 360, 0, accel_rad * 100 * correct, 0);
+  }
+
+  int sel;
+  if (image_mode < 1250) {
+    sel = 0;
+  } else if (image_mode < 1750) {
+    sel = 1;
+  } else {
+    sel = 2;
+  }
+  
+  if (sel != sel_video) {
+    if (sel == 0) { load_vid(haloween_vid); }
+    if (sel == 1) { load_vid(bouncing_pumpkin); }
+    if (sel == 2) { load_vid(sabremation); }
+    sel_video = sel;
   }
 
   if (!emote) {
