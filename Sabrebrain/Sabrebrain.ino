@@ -15,6 +15,7 @@ extern "C" {
 
 // images here:
 #include "image_taunt.h"
+#include "image_calibrate.h"
 
 // videos here:
 #include "bouncing_pumpkin.h"
@@ -103,7 +104,6 @@ void command_motors(int left, int right);
 
 // RF stuff
 void updateCRSF();
-void trim();
 const int SLIP_CH = 1;
 const int TRANS_CH = 2;
 const int SPIN_CH = 3;
@@ -114,6 +114,12 @@ const int DIR_CH = 8;  // used to correct heading offset
 const int LIGHT_CH = 9;
 const int TRIM_CH = 10;   // used to trim rotation
 const int EMOTE_CH = 11;  // used to trigger emote message
+
+// Calibration stuff
+bool calib_held = false;
+unsigned long calib_held_start;
+int calibration_mode = 0;
+int calib_press_delay = 3000;
 
 // safety stuff
 unsigned long stopflag_time = 0;
@@ -131,7 +137,7 @@ float head = 0;
 float spin = 0;
 float correct = 1;
 bool headMode;
-bool trimMode = false;
+bool calibPress = false;
 float head_trim = 0;
 int image_mode;
 bool emote;
@@ -232,31 +238,42 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   last_angle_time = micros();
 
   int left_sig, right_sig;
+  if (calibration_mode != 0) {
 
-  // robot control modes
-  if (spin > 0) {     // spinning mode
-    if (!headMode) {  // spinning mode
-      float cosresult = cos(radians(angle));
-      float sinresult = sin(radians(angle));
-      float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
-      left_sig = spin + delta;
-      right_sig = -spin + delta;
-      paint_screen(angle);  // update screen
-    } else {                // if headmode, just keep spinnin
-      left_sig = spin;
-      right_sig = -spin;
+    // robot control modes
+    if (spin > 0) {     // spinning mode
+      if (!headMode) {  // spinning mode
+        float cosresult = cos(radians(angle));
+        float sinresult = sin(radians(angle));
+        float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
+        left_sig = spin + delta;
+        right_sig = -spin + delta;
+        paint_screen(angle);  // update screen
+      } else {                // if headmode, just keep spinnin
+        left_sig = spin;
+        right_sig = -spin;
+      }
+
+    } else {  // normal robot mode
+
+      rainbow_line();  // draw rainbow
+      // slip = slip * 0.1;  // reduce turning speed
+
+      // normal driving with minimum motor speed
+      left_sig = slip + trans;
+      left_sig = (abs(left_sig) < min_drive) ? 0 : left_sig;
+      right_sig = -slip + trans;
+      right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
     }
-
-  } else {  // normal robot mode
-
-    rainbow_line();  // draw rainbow
-    // slip = slip * 0.1;  // reduce turning speed
-
-    // normal driving with minimum motor speed
-    left_sig = slip + trans;
-    left_sig = (abs(left_sig) < min_drive) ? 0 : left_sig;
-    right_sig = -slip + trans;
-    right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
+  } else {
+    // calibration here
+    if (spin <= 99) {  // exit calibration mode
+      calibration_mode = 0;
+      continue;
+    }
+    int calib_throttle = (min(spin, calibration_mode * 100);
+		left_sig = calib_throttle;
+		right_sig = calib_throttle;
   }
 
   command_motors(left_sig, right_sig);
@@ -270,11 +287,29 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   static int loopcount = 0;  // # timing
 
   updateCRSF();  // update control
-  trim();
+
+  // calibration stuff
+  if (calibPress) {  // calibration button currently pressed
+
+    if (!calib_held) {
+      // Button was just pressed
+      calib_held_start = millis();
+      calib_held = true;
+    } else {
+      // Button is being held
+      if (millis() - calib_held_start > calib_press_delay) {
+        calibration_mode = 1;
+      }
+    }
+
+  } else {
+    // Button released
+    calib_held = false;
+  }
+
 
   if (headMode) {
     if (spin == 0) {  // not spinning head mode
-
 
     } else {                                      // spinning head mode
       static float head_change = 0;               // var to hold heading change between loops while button is held
@@ -324,7 +359,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   } else {
     sel = 2;
   }
-  
+
   if (sel != sel_video) {
     if (sel == 0) { load_vid(haloween_vid); }
     if (sel == 1) { load_vid(bouncing_pumpkin); }

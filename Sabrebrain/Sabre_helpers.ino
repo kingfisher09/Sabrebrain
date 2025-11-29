@@ -79,31 +79,11 @@ void updateCRSF() {
   correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * -correct_max) + 1;
   headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
   head_delay = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
-  trimMode = crsf.rcToUs(crsf.getChannel(TRIM_CH)) > 1500;
+  calibPress = crsf.rcToUs(crsf.getChannel(TRIM_CH)) > 1500;
   image_mode = crsf.rcToUs(crsf.getChannel(LIGHT_CH));
   emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
 }
 
-void trim() {
-  static bool trimming = false;
-  if (trimMode) {  // only fires if trim channel active AND has not already fired
-    if (!trimming && head != 0) {
-      head_trim += head * HEAD_CONTROL_SCALE;
-      trimming = true;
-    }
-  }
-
-  if (trimming) {
-    if (head == 0) {  // stick centred again
-      trimming = false;
-      flash();  // flash to let user know
-    } else {
-      head = 0;  // avoid doubling the effect
-    }
-  }
-
-
-}
 
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
   /* Here is where you can read out the link statistics.
