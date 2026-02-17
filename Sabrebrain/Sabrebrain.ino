@@ -1,6 +1,33 @@
-// Software for melty brain robot written by Owen Fisher 2024-25
+// Software for melty brain robot written by Owen Fisher 2024-26
 
-#include "sabre_Config.h"
+// NOTE:
+// Robot configuration is selected via config/target.h
+// Intended future migration to PlatformIO with per-robot build environments
+
+#define ROBOT_SABRE
+#include "config/active_config.h"
+
+
+#if defined(ROBOT_SABRETOOTH)
+#include "config/sabre_config.h"
+
+// PUT THESE IN CONFIG?????????????????????????
+// images here:
+#include "image_taunt.h"
+#include "image_calibrate.h"
+
+// videos here:
+#include "videos/bouncing_pumpkin.h"
+#include "videos/haloween_vid.h"
+#include "videos/sabremation.h"
+
+#elif defined(ROBOT_DREADNOUGHT)
+#include "config/dread_config.h"
+#else
+#error "Define a robot, e.g. -DROBOT_SABRE"
+#endif
+
+
 #include "CRSFforArduino.hpp"
 #include "RP2040_PWM.h"
 #include "SparkFun_LIS331.h"
@@ -13,14 +40,6 @@ extern "C" {
 #include "sabre_Vid.h"  // needed for struct for videos
 #include <utility>
 
-// images here:
-#include "image_taunt.h"
-#include "image_calibrate.h"
-
-// videos here:
-#include "bouncing_pumpkin.h"
-#include "haloween_vid.h"
-#include "sabremation.h"
 
 LIS331 xl;  // accelerometer thing
 
@@ -33,17 +52,16 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 int deadzone = 30;   // for transmitter sticks
 int max_head = 360;  // max heading change in deg/s
 int oneshot_Freq = 3500;
-int speed_int = 300;      // miliseconds between speed measurements
-int head_delay = 17;      // 17 seems good for v4, may need to be adjusted in future
-float correct_max = 0.0;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
-int min_drive = 80;
+constexpr uint16_t head_delay = CONFIG.head_delay;
+THIS DOESN'T SEEM TO BE USED???????????? float correct_max = 0.0;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5  ----- to be removed with calibration
+constexpr uint16_t min_drive = CONFIG.min_drive;
 const int rainbow_delay = 40;
 const int flash_delay = 10;
 bool flash_now = false;  // whether currently doing a flash
 
 // Robot stuff
-const float accel_rad = 70.0 / 1000.0;  // input in mm, outputs m
-bool flip_rot_direction = true;         // false for rotating with compass, true for against compass
+constexpr float accel_rad = CONFIG.accel_rad;
+constexpr bool flip_rot_direction = CONFIG.flip_rot_direction;  // false for rotating with compass, true for against compass
 #define RIGHT_MOTOR_DIRECTION -1
 #define LEFT_MOTOR_DIRECTION -1
 #define TRANS_SIGN -1  // swap translate direction
@@ -60,8 +78,9 @@ const int headClock = 28;  // LED clock pin
 
 // Sabrescreen stuff
 
-const int NUM_LEDS = SABRE_NUM_LEDS;
-const int NUM_ANGLES = SABRE_NUM_ANGLES;  // the 3 slice settings all need to be float for the calculations to work
+constexpr uint16_t NUM_LEDS = CONFIG.numLeds;
+constexpr uint16_t NUM_ANGLES = CONFIG.numAngles;
+
 const float slice_size = 360.0f / NUM_ANGLES;
 const float half_slice = slice_size / 2.0f;
 int bow_pos = 0;  // for keeping track of rainbow pixel
@@ -330,10 +349,12 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     xl.readAxes(x, y, z);
     x = x + xoff;
     y = y + yoff;
-    float xg = xl.convertToG(200, x);
-    float yg = xl.convertToG(200, y);
+    z = z + zoff;
+    float xg = xl.convertToG(200, x) * x_scale;
+    float yg = xl.convertToG(200, y) * y_scale;
+    float zg = xl.convertToG(200, z) * z_scale;
 
-    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
+    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
 
     // FILTER ACCEL
     float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
