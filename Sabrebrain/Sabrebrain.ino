@@ -4,35 +4,31 @@
 // Robot configuration is selected via config/target.h
 // Intended future migration to PlatformIO with per-robot build environments
 
-#define ROBOT_SABRE
-#include "config/active_config.h"
 
+// #define ROBOT_SABRE
+#define ROBOT_DREAD
 
-#if defined(ROBOT_SABRETOOTH)
-#include "config/sabre_config.h"
+#include "config/active_config.h"  // this defines CONFIG
+
+constexpr uint16_t MASK_BYTES_PER_FRAME =
+  (uint32_t(CONFIG.numAngles) * uint32_t(CONFIG.numLeds) * 2u + 7u) / 8u;
+
 
 // PUT THESE IN CONFIG?????????????????????????
 // images here:
+#include <FastLED.h>
 #include "image_taunt.h"
 #include "image_calibrate.h"
 
 // videos here:
 #include "videos/bouncing_pumpkin.h"
-#include "videos/haloween_vid.h"
+// #include "videos/haloween_vid.h"
 #include "videos/sabremation.h"
-
-#elif defined(ROBOT_DREADNOUGHT)
-#include "config/dread_config.h"
-#else
-#error "Define a robot, e.g. -DROBOT_SABRE"
-#endif
-
 
 #include "CRSFforArduino.hpp"
 #include "RP2040_PWM.h"
 #include "SparkFun_LIS331.h"
 #include <Wire.h>
-#include <FastLED.h>
 #include <math.h>
 extern "C" {
 #include <hardware/watchdog.h>
@@ -53,7 +49,8 @@ int deadzone = 30;   // for transmitter sticks
 int max_head = 360;  // max heading change in deg/s
 int oneshot_Freq = 3500;
 constexpr uint16_t head_delay = CONFIG.head_delay;
-THIS DOESN'T SEEM TO BE USED???????????? float correct_max = 0.0;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5  ----- to be removed with calibration
+// THIS DOESN'T SEEM TO BE USED????????????
+float correct_max = 0.0;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5  ----- to be removed with calibration
 constexpr uint16_t min_drive = CONFIG.min_drive;
 const int rainbow_delay = 40;
 const int flash_delay = 10;
@@ -244,7 +241,7 @@ void setup1() {
   yoff = 10;
 
   load_vid(bouncing_pumpkin);
-  load_vid(haloween_vid);
+  // load_vid(haloween_vid);
 }
 
 void loop() {                    // Loop 0 handles motor commands, angle calc and updating pixels
@@ -382,7 +379,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   }
 
   if (sel != sel_video) {
-    if (sel == 0) { load_vid(haloween_vid); }
+    // if (sel == 0) { load_vid(haloween_vid); }
     if (sel == 1) { load_vid(bouncing_pumpkin); }
     if (sel == 2) { load_vid(sabremation); }
     sel_video = sel;

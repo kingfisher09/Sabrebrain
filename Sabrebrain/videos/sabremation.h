@@ -1,7 +1,7 @@
 #ifndef SABREMATION_H
 #define SABREMATION_H
 
-#include "sabre_Vid.h"
+#include "../sabre_Vid.h"
 
 // Geometry
 const uint16_t sabremation_NUM_ANGLES = 150;

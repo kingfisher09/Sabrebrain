@@ -1,7 +1,7 @@
 #ifndef HALOWEEN_VID_H
 #define HALOWEEN_VID_H
 
-#include "sabre_Vid.h"
+#include "../sabre_Vid.h"
 
 // Geometry
 const uint16_t haloween_vid_NUM_ANGLES = 150;

@@ -1,7 +1,7 @@
 #ifndef BOUNCING_PUMPKIN_H
 #define BOUNCING_PUMPKIN_H
 
-#include "sabre_Vid.h"
+#include "../sabre_Vid.h"
 
 // Geometry
 const uint16_t bouncing_pumpkin_NUM_ANGLES = 150;

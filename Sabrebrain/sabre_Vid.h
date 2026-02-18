@@ -2,7 +2,7 @@
 #pragma once
 #include <Arduino.h>
 #include <FastLED.h>
-#include "sabre_Config.h"
+// #include "config/sabre_config.h"
 
 // -----------------------------------------------------------------------------
 // SabreVid — description of an exported animation for the POV system
