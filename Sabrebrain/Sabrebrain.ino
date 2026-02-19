@@ -34,7 +34,7 @@ int max_head = 360;  // max heading change in deg/s
 int oneshot_Freq = 3500;
 int speed_int = 300;      // miliseconds between speed measurements
 int head_delay = 17;      // 17 seems good for v4, may need to be adjusted in future
-float correct_max = 0.0;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+float correct_max = 0.5;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 int min_drive = 80;
 const int rainbow_delay = 40;
 const int flash_delay = 10;
@@ -51,7 +51,7 @@ bool flip_rot_direction = true;         // false for rotating with compass, true
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
-const int MOTOR_LEFT_PIN = 3;
+const int MOTOR_LEFT_PIN = 2;
 #define LED_POWER_PIN 11   //  builtin LED Power control pin
 #define LED_PIN 12         // Data pin for NeoPixel
 const int headPin = 27;    // LED heading data pin
@@ -297,8 +297,9 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     y = y + yoff;
     float xg = xl.convertToG(200, x);
     float yg = xl.convertToG(200, y);
+    float zg = xl.convertToG(200, z);
 
-    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
+    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
 
     // FILTER ACCEL
     float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
