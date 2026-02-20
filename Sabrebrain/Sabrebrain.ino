@@ -34,14 +34,14 @@ int max_head = 360;  // max heading change in deg/s
 int oneshot_Freq = 3500;
 int speed_int = 300;      // miliseconds between speed measurements
 int head_delay = 17;      // 17 seems good for v4, may need to be adjusted in future
-float correct_max = 0.5;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+float correct_max = 0.2;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 int min_drive = 80;
 const int rainbow_delay = 40;
 const int flash_delay = 10;
 bool flash_now = false;  // whether currently doing a flash
 
 // Robot stuff
-const float accel_rad = 70.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 84.0 / 1000.0;  // input in mm, outputs m
 bool flip_rot_direction = true;         // false for rotating with compass, true for against compass
 #define RIGHT_MOTOR_DIRECTION -1
 #define LEFT_MOTOR_DIRECTION -1
