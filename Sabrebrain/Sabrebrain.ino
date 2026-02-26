@@ -108,6 +108,7 @@ const int SLIP_CH = 1;
 const int TRANS_CH = 2;
 const int SPIN_CH = 3;
 const int HEAD_CH = 4;
+const int INVERT_CH = 5;
 const int CORRECT_CH = 6;  // used to correct accel radius
 const int HEAD_MODE_CH = 7;
 const int DIR_CH = 8;  // used to correct heading offset
@@ -135,6 +136,7 @@ bool trimMode = false;
 float head_trim = 0;
 int image_mode;
 bool emote;
+float invert  = 1;
 
 // rotation tracking
 float angle = 0;                    // current robot angle
@@ -243,8 +245,8 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
       right_sig = -spin + delta;
       paint_screen(angle);  // update screen
     } else {                // if headmode, just keep spinnin
-      left_sig = spin;
-      right_sig = -spin;
+      left_sig = spin * invert;
+      right_sig = -spin * invert;
     }
 
   } else {  // normal robot mode

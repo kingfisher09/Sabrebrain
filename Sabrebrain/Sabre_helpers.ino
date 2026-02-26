@@ -6,7 +6,7 @@ void command_motors(int left, int right) {
   } else {
     if (watchdog_enabled) {
       watchdog_update();
-    } else if (nowish > E_stop_time){  // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
+    } else if (nowish > E_stop_time) {  // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
       watchdog_enable(watchdog_time, 0);
       watchdog_enabled = true;
       watchdog_update();
@@ -82,6 +82,11 @@ void updateCRSF() {
   trimMode = crsf.rcToUs(crsf.getChannel(TRIM_CH)) > 1500;
   image_mode = crsf.rcToUs(crsf.getChannel(LIGHT_CH));
   emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
+  if (crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500) {
+    invert = 1;
+  } else {
+    invert - 1;
+  }
 }
 
 void trim() {
@@ -101,8 +106,6 @@ void trim() {
       head = 0;  // avoid doubling the effect
     }
   }
-
-
 }
 
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
