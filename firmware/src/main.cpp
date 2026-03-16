@@ -1,5 +1,6 @@
 // Software for melty brain robot written by Owen Fisher 2024-25
 
+#include <Arduino.h>
 #include "sabre_Config.h"
 #include "CRSFforArduino.hpp"
 #include "RP2040_PWM.h"

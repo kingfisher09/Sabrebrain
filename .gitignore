@@ -1,0 +1,5 @@
+# PlatformIO build output
+firmware/.pio/
+
+# VS Code workspace files (local)
+firmware/.vscode/
