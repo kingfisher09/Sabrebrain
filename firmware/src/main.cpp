@@ -1,18 +1,5 @@
 // Software for melty brain robot written by Owen Fisher 2024-25
-
-#include <Arduino.h>
-#include "sabre_Config.h"
-#include "CRSFforArduino.hpp"
-#include "RP2040_PWM.h"
-#include "SparkFun_LIS331.h"
-#include <Wire.h>
-#include <FastLED.h>
-#include <math.h>
-extern "C" {
-#include <hardware/watchdog.h>
-}
-#include "sabre_Vid.h"  // needed for struct for videos
-#include <utility>
+#include "sabre_globals.h"
 
 // images here:
 #include "image_taunt.h"
@@ -21,6 +8,8 @@ extern "C" {
 #include "bouncing_pumpkin.h"
 #include "haloween_vid.h"
 #include "sabremation.h"
+
+int sel_video = 0; // only used in main so no need to move
 
 LIS331 xl;  // accelerometer thing
 
@@ -44,11 +33,6 @@ bool flash_now = false;  // whether currently doing a flash
 // Robot stuff
 const float accel_rad = 84.0 / 1000.0;  // input in mm, outputs m
 bool flip_rot_direction = true;         // false for rotating with compass, true for against compass
-#define RIGHT_MOTOR_DIRECTION -1
-#define LEFT_MOTOR_DIRECTION -1
-#define TRANS_SIGN -1  // swap translate direction
-#define SLIP_SIGN -1   // swap slip direction
-#define HEAD_CONTROL_SCALE 0.33
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
@@ -58,40 +42,6 @@ const int MOTOR_LEFT_PIN = 2;
 const int headPin = 27;    // LED heading data pin
 const int headClock = 28;  // LED clock pin
 
-// Sabrescreen stuff
-
-const int NUM_LEDS = SABRE_NUM_LEDS;
-const int NUM_ANGLES = SABRE_NUM_ANGLES;  // the 3 slice settings all need to be float for the calculations to work
-const float slice_size = 360.0f / NUM_ANGLES;
-const float half_slice = slice_size / 2.0f;
-int bow_pos = 0;  // for keeping track of rainbow pixel
-
-using Row = CRGB[NUM_LEDS];
-Row bufferA[NUM_ANGLES] = { 0 };
-Row bufferB[NUM_ANGLES] = { 0 };
-
-Row* current_frame = bufferA;
-Row* next_frame = bufferB;
-
-const SabreVid* current_vid = nullptr;  // pointer to whichever video is active. Const because we never write to what the pointer is pointing at
-
-int frame_duration;
-int frame_num;
-int num_frames;
-unsigned long frame_time;
-
-void load_vid(const SabreVid& video);
-void load_frame();
-
-CRGB leds[NUM_LEDS];  // array to hold LED colours
-void paint_screen();  // function to control LEDs
-bool update_image = false;
-const int hue_change = round(255 / NUM_LEDS);  // make sure you get a full rainbow along the line
-void flash();
-void flashing();
-
-int sel_video = 0;
-
 // End Sabrescreen stuff
 
 const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
@@ -99,12 +49,8 @@ const int accel_pow = 26;  // pin to power accelerometer, allows it to be restar
 // motors
 RP2040_PWM* motor_Right;
 RP2040_PWM* motor_Left;
-float oneshot_Duty(int thoucentage, int dir_flip);
-void command_motors(int left, int right);
 
 // RF stuff
-void updateCRSF();
-void trim();
 const int SLIP_CH = 1;
 const int TRANS_CH = 2;
 const int SPIN_CH = 3;
@@ -122,9 +68,6 @@ unsigned long stopflag_time = 0;
 int E_stop_time = 100;          // ms allowed between ELRS signals before shutting down motors
 int watchdog_time = 1000;       // ms after E_stop before resetting MCU
 bool watchdog_enabled = false;  // bool to record watchdog status. Watchdog will be enabled when transmitter first sends data, MCU will restart 1s after estop if no more signals are received
-
-int powerCurve(int x);
-float servoTothoucentage(int servoSignal, int stickmode);
 
 // movement commands
 float slip = 0;
@@ -215,7 +158,6 @@ void setup1() {
       Serial.println("Accel begin failed, trying again");
     }
   }
-
 
   Serial.println("Thread 1 started");
   xoff = 10;
@@ -341,7 +283,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     load_frame();
   } else {
     memcpy(current_frame, image_taunt, sizeof(image_taunt));
-    frame_num = -1;
+    frame_num = -1;  // I don't like this, would be nicer to have a function to start playing vid
   }
 
   // flash annimation

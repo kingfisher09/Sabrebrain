@@ -1,0 +1,13 @@
+#pragma once
+
+// Movement settings
+constexpr int RIGHT_MOTOR_DIRECTION = -1;  // #usersetting
+constexpr int LEFT_MOTOR_DIRECTION = -1;   // #usersetting
+constexpr float HEAD_CONTROL_SCALE = 0.33; // #advancedusersetting
+constexpr int TRANS_SIGN = -1; // #advancedusersetting
+constexpr int SLIP_SIGN = -1;  // #advancedusersetting
+
+// Screen settings
+constexpr int NUM_ANGLES = 150;
+constexpr int NUM_LEDS = 23; // #usersetting
+constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;

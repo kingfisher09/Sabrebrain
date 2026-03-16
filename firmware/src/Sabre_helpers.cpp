@@ -1,4 +1,4 @@
-#include <Arduino.h>
+#include "sabre_globals.h" 
 
 void command_motors(int left, int right) {
   unsigned long nowish = millis();
@@ -84,7 +84,7 @@ void updateCRSF() {
   trimMode = crsf.rcToUs(crsf.getChannel(TRIM_CH)) > 1500;
   image_mode = crsf.rcToUs(crsf.getChannel(LIGHT_CH));
   emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
-  if (crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500) {
+  if (crsf.rcToUs(crsf.getChannel(INVERT_CH)) > 1500) {
     invert = 1;
   } else {
     invert - 1;

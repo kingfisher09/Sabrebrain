@@ -1,4 +1,34 @@
-#include <Arduino.h>
+#include "sabre_globals.h" 
+
+// Sabrescreen stuff
+
+const float slice_size = 360.0f / NUM_ANGLES;
+const float half_slice = slice_size / 2.0f;
+int bow_pos = 0;  // for keeping track of rainbow pixel
+
+// Define "Row" as a alias for an array of NUM_LEDS colours.
+using Row = CRGB[NUM_LEDS];
+
+// Create two full frames worth of LED data in memory - all black
+Row bufferA[NUM_ANGLES] = { 0 };
+Row bufferB[NUM_ANGLES] = { 0 };
+
+// The * means we are creating pointers that point to addresses in memory rather than copying the contents. Later on this allows fast switching
+Row* current_frame = bufferA;
+Row* next_frame = bufferB;
+
+const SabreVid* current_vid = nullptr;  // pointer to whichever video is active. Const because we never write to what the pointer is pointing at
+
+int frame_duration;
+int frame_num;
+int num_frames;
+unsigned long frame_time;
+
+
+CRGB leds[NUM_LEDS];  // array to hold LED colours
+bool update_image = false;
+constexpr int hue_change = 255 / NUM_LEDS; // integer division is fine here, round() not needed
+
 
 void paint_screen(float angle_in) {  // called by loop 0
   if (flash_now) { return; }         // don't annimate while flashhing
