@@ -1,5 +1,6 @@
 // Software for melty brain robot written by Owen Fisher 2024-25
 
+#include <Arduino.h>
 #include "sabre_Config.h"
 #include "CRSFforArduino.hpp"
 #include "RP2040_PWM.h"
@@ -34,14 +35,14 @@ int max_head = 360;  // max heading change in deg/s
 int oneshot_Freq = 3500;
 int speed_int = 300;      // miliseconds between speed measurements
 int head_delay = 17;      // 17 seems good for v4, may need to be adjusted in future
-float correct_max = 0.0;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+float correct_max = 0.2;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 int min_drive = 80;
 const int rainbow_delay = 40;
 const int flash_delay = 10;
 bool flash_now = false;  // whether currently doing a flash
 
 // Robot stuff
-const float accel_rad = 70.0 / 1000.0;  // input in mm, outputs m
+const float accel_rad = 84.0 / 1000.0;  // input in mm, outputs m
 bool flip_rot_direction = true;         // false for rotating with compass, true for against compass
 #define RIGHT_MOTOR_DIRECTION -1
 #define LEFT_MOTOR_DIRECTION -1
@@ -51,7 +52,7 @@ bool flip_rot_direction = true;         // false for rotating with compass, true
 
 // pins
 const int MOTOR_RIGHT_PIN = 4;
-const int MOTOR_LEFT_PIN = 3;
+const int MOTOR_LEFT_PIN = 2;
 #define LED_POWER_PIN 11   //  builtin LED Power control pin
 #define LED_PIN 12         // Data pin for NeoPixel
 const int headPin = 27;    // LED heading data pin
@@ -108,6 +109,7 @@ const int SLIP_CH = 1;
 const int TRANS_CH = 2;
 const int SPIN_CH = 3;
 const int HEAD_CH = 4;
+const int INVERT_CH = 5;
 const int CORRECT_CH = 6;  // used to correct accel radius
 const int HEAD_MODE_CH = 7;
 const int DIR_CH = 8;  // used to correct heading offset
@@ -135,6 +137,7 @@ bool trimMode = false;
 float head_trim = 0;
 int image_mode;
 bool emote;
+float invert  = 1;
 
 // rotation tracking
 float angle = 0;                    // current robot angle
@@ -243,8 +246,8 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
       right_sig = -spin + delta;
       paint_screen(angle);  // update screen
     } else {                // if headmode, just keep spinnin
-      left_sig = spin;
-      right_sig = -spin;
+      left_sig = spin * invert;
+      right_sig = -spin * invert;
     }
 
   } else {  // normal robot mode
@@ -297,8 +300,9 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     y = y + yoff;
     float xg = xl.convertToG(200, x);
     float yg = xl.convertToG(200, y);
+    float zg = xl.convertToG(200, z);
 
-    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2));  // given in m/s^2
+    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
 
     // FILTER ACCEL
     float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);

@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 void paint_screen(float angle_in) {  // called by loop 0
   if (flash_now) { return; }         // don't annimate while flashhing
 
