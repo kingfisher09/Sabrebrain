@@ -18,50 +18,12 @@ CRSFforArduino crsf = CRSFforArduino(&Serial1);
 /* This needs to be up here, to prevent compiler warnings. */
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 
-// settings
-int deadzone = 30;   // for transmitter sticks
-int max_head = 360;  // max heading change in deg/s
-int oneshot_Freq = 3500;
-int speed_int = 300;      // miliseconds between speed measurements
-int head_delay = 17;      // 17 seems good for v4, may need to be adjusted in future
-float correct_max = 0.2;  // ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
-int min_drive = 80;
-const int rainbow_delay = 40;
-const int flash_delay = 10;
-bool flash_now = false;  // whether currently doing a flash
-
-// Robot stuff
-const float accel_rad = 84.0 / 1000.0;  // input in mm, outputs m
-bool flip_rot_direction = true;         // false for rotating with compass, true for against compass
-
-// pins
-const int MOTOR_RIGHT_PIN = 4;
-const int MOTOR_LEFT_PIN = 2;
-#define LED_POWER_PIN 11   //  builtin LED Power control pin
-#define LED_PIN 12         // Data pin for NeoPixel
-const int headPin = 27;    // LED heading data pin
-const int headClock = 28;  // LED clock pin
-
 // End Sabrescreen stuff
 
-const int accel_pow = 26;  // pin to power accelerometer, allows it to be restarted easily
-
+bool flash_now = false;  // whether currently doing a flash
 // motors
 RP2040_PWM* motor_Right;
 RP2040_PWM* motor_Left;
-
-// RF stuff
-const int SLIP_CH = 1;
-const int TRANS_CH = 2;
-const int SPIN_CH = 3;
-const int HEAD_CH = 4;
-const int INVERT_CH = 5;
-const int CORRECT_CH = 6;  // used to correct accel radius
-const int HEAD_MODE_CH = 7;
-const int DIR_CH = 8;  // used to correct heading offset
-const int LIGHT_CH = 9;
-const int TRIM_CH = 10;   // used to trim rotation
-const int EMOTE_CH = 11;  // used to trigger emote message
 
 // safety stuff
 unsigned long stopflag_time = 0;
@@ -119,8 +81,6 @@ void setup() {
   // Builtin LED first
   pinMode(LED_POWER_PIN, OUTPUT);  // Turn on LED power
   digitalWrite(LED_POWER_PIN, HIGH);
-  // CRGB builtinLED[] = { CRGB(128, 128, 128) };
-  // FastLED.addLeds<WS2812B, LED_PIN, GRB>(builtinLED, 1);
 
   FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, NUM_LEDS);  // connect to LED strip
   FastLED.clear();                                                   // ensure all LEDs start off
