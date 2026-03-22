@@ -7,12 +7,27 @@ uint32_t erpm_left = 0;
 uint32_t erpm_right = 0;
 
 int floatToDshot(float value) {
-  // DShot 3D mode: 0 = stop, 48-1047 = reverse (48 slowest), 1049-2047 = forward (2047 fastest), 1048 = unused
-    value = constrain(value, -1.0f, 1.0f);  // limits to ±1 stick commands can easily push outside of this range
+  // This function maps -1 to 1 -> 1-1000 (reverse speed, 1 is slow) and 1001 to 2000 (forward speed)
+  // May want to make these #advancedusersetting at some point but likely not
 
-    if (value == 0) return 0;
-    if (value > 0) return (int)(value * 998) + 1049;  // 1049-2047
-    return (int)((value + 1) * 999) + 48;             // 48-1047
+  value = constrain(value, -1.0f, 1.0f);
+
+  const int revMin = 100;
+  const int revMax = 1000;  // your test upper limit for reverse
+  const int fwdMin = 1001;
+  const int fwdMax = 2000;
+
+  if (value == 0) {
+    return 0;  // or 1048 if you later want true neutral instead of stop
+  }
+
+  if (value < 0.0f) {
+    // Map -1.0 → revMax, 0.0- → revMin
+    return revMin + (int)((-value) * (revMax - revMin));
+  } else {
+    // Map 0.0+ → fwdMin, +1.0 → fwdMax
+    return fwdMin + (int)(value * (fwdMax - fwdMin));
+  }
 }
 
 void command_motors(float left, float right) {
@@ -34,15 +49,15 @@ void command_motors(float left, float right) {
   motor_Left->getTelemetryErpm(&erpm_left);
   motor_Right->getTelemetryErpm(&erpm_right);
 
-  // Convert -1.0 to 1.0 -> 0 to 2000 which DSHOT expects
-  int dshot_left = floatToDshot(left);
-  int dshot_right = floatToDshot(right);
+  // Convert -1.0 to 1.0 -> DSHOT signals, flip direction as desired
+  int dshot_left = floatToDshot(left * LEFT_MOTOR_DIRECTION);
+  int dshot_right = floatToDshot(right * RIGHT_MOTOR_DIRECTION);
 
   motor_Left->sendThrottle(dshot_left);
   motor_Right->sendThrottle(dshot_right);
 
-  Serial.println("L: " + String(left) + " DSL: " + String(dshot_left) + " R: " + String(right) + " DSR: " + String(dshot_right));
-  // Serial.println("dshot_right: " + String(dshot_right));
+  Serial.println(
+      "L: " + String(left, 3) + " DSL: " + String(dshot_left) + " ERPM_L: " + String(erpm_left) + " | R: " + String(right, 3) + " DSR: " + String(dshot_right) + " ERPM_R: " + String(erpm_right));
 }
 
 float powerCurve(float x) {

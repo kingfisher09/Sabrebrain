@@ -89,3 +89,4 @@ void rainbow_line();
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics);
 float wrap360(float angle);
 float angleDistance(float a, float b);
+void passthrough();

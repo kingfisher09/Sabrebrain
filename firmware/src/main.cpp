@@ -59,11 +59,15 @@ float b1 = x;
 float prev_filt_val = 0;
 
 void setup() {
-  // put your setup code here, to run once:
-  // Initialise CRSF for Arduino.
   Serial.begin(115200);
+  // Passthrough mode, keep this at the top of setup!
+  if (passthrough_mode) {
+    passthrough();
+  }
+
   delay(1000);
   Serial.println("Thread 0 starting...");
+  // Initialise CRSF for Arduino.
   if (!crsf.begin()) {
     Serial.println("CRSF for Arduino initialisation failed!");
     while (1) {
@@ -75,7 +79,6 @@ void setup() {
   crsf.setLinkStatisticsCallback(onLinkStatisticsUpdate);
 
   // set up LEDs
-
   // Builtin LED first
   pinMode(LED_POWER_PIN, OUTPUT);  // Turn on LED power
   digitalWrite(LED_POWER_PIN, HIGH);
@@ -103,6 +106,12 @@ void setup() {
 }
 
 void setup1() {
+  // Passthrough mode, keep this at the top of setup!
+  if (passthrough_mode) {
+    while (true) {
+      delay(1000);
+    }
+  }
   Wire.begin();
   // Reset accelerometer
   pinMode(accel_pow, OUTPUT);

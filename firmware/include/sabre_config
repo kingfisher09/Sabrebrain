@@ -2,9 +2,13 @@
 
 #pragma once
 
+// Modes
+constexpr bool passthrough_mode = false;
+
 // Movement settings
-constexpr int RIGHT_MOTOR_DIRECTION = -1;   // #usersetting
+constexpr int RIGHT_MOTOR_DIRECTION = 1;    // #usersetting
 constexpr int LEFT_MOTOR_DIRECTION = -1;    // #usersetting
+constexpr float min_drive = 0.02;           // #advancedusersetting
 constexpr float HEAD_CONTROL_SCALE = 0.33;  // #advancedusersetting
 constexpr int TRANS_SIGN = -1;              // #advancedusersetting
 constexpr int SLIP_SIGN = -1;               // #advancedusersetting
@@ -18,7 +22,6 @@ constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
 constexpr int deadzone = 30;           // #advancedusersetting for transmitter sticks
 constexpr int max_head = 360;          // #advancedusersetting max heading change in deg/s
 constexpr float correct_max = 0.2;     // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
-constexpr float min_drive = 0.08;      // #advancedusersetting
 constexpr int rainbow_delay = 40;      // #usersetting
 constexpr int flash_delay = 10;        // #usersetting
 constexpr int ESC_start_delay = 3000;  // #advancedusersetting
