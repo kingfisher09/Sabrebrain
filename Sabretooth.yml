@@ -20,6 +20,15 @@ extendedLimits: 0
 extendedTrims: 0
 throttleReversed: 0
 checklistInteractive: 0
+flightModeData:
+  0:
+    trim:
+      3:
+        value: -2
+        mode: 0
+    name: ""
+    fadeIn: 0
+    fadeOut: 0
 mixData:
   - destCh: 0
     srcRaw: I0
@@ -62,26 +71,7 @@ mixData:
   - destCh: 2
     srcRaw: I2
     weight: 100
-    swtch: SF0
-    curve:
-      type: 3
-      value: 1
-    delayPrec: 0
-    delayUp: 0
-    delayDown: 0
-    speedPrec: 0
-    speedUp: 0
-    speedDown: 0
-    carryTrim: 0
-    mltpx: ADD
-    mixWarn: 0
-    flightModes: 000000000
-    offset: 0
-    name: ""
-  - destCh: 2
-    srcRaw: I2
-    weight: 100
-    swtch: SF2
+    swtch: NONE
     curve:
       type: 0
       value: 0
@@ -136,7 +126,7 @@ mixData:
     offset: 0
     name: Mag
   - destCh: 5
-    srcRaw: I4
+    srcRaw: P1
     weight: 100
     swtch: NONE
     curve:
@@ -174,7 +164,7 @@ mixData:
     offset: 0
     name: Headmo
   - destCh: 7
-    srcRaw: I9
+    srcRaw: P2
     weight: 100
     swtch: NONE
     curve:
@@ -193,7 +183,7 @@ mixData:
     offset: 0
     name: Head A
   - destCh: 8
-    srcRaw: I7
+    srcRaw: SC
     weight: 100
     swtch: NONE
     curve:
@@ -230,6 +220,25 @@ mixData:
     flightModes: 000000000
     offset: 0
     name: Emote
+  - destCh: 10
+    srcRaw: SG
+    weight: 100
+    swtch: NONE
+    curve:
+      type: 0
+      value: 0
+    delayPrec: 0
+    delayUp: 0
+    delayDown: 0
+    speedPrec: 0
+    speedUp: 0
+    speedDown: 0
+    carryTrim: 0
+    mltpx: ADD
+    mixWarn: 0
+    flightModes: 000000000
+    offset: 0
+    name: TRIM
 limitData:
   0:
     min: 0
@@ -394,19 +403,6 @@ expoData:
       value: 0
     trimSource: 0
     name: Head
-  - srcRaw: P2
-    scale: 0
-    mode: 3
-    chn: 9
-    swtch: NONE
-    flightModes: 000000000
-    weight: 100
-    offset: 0
-    curve:
-      type: 0
-      value: 0
-    trimSource: 0
-    name: Head A
 inputNames:
   0:
     val: Ail
@@ -426,8 +422,6 @@ inputNames:
     val: LGT
   8:
     val: Hd
-  9:
-    val: Hda
 curves:
   0:
     type: 1
@@ -442,7 +436,7 @@ points:
 logicalSw:
   0:
     func: FUNC_ANEG
-    def: P1,4
+    def: NONE,4
     delay: 0
     duration: 5
     andsw: NONE
@@ -450,7 +444,7 @@ logicalSw:
     lsState: 0
   1:
     func: FUNC_ANEG
-    def: P2,4
+    def: NONE,4
     delay: 0
     duration: 5
     andsw: NONE
@@ -460,11 +454,11 @@ customFn:
   0:
     swtch: L1
     func: HAPTIC
-    def: 0,1,1x
+    def: 0,1,1
   1:
     swtch: L2
     func: HAPTIC
-    def: 0,1,1x
+    def: 0,1,1
 swashR:
   type: TYPE_NONE
   value: 0

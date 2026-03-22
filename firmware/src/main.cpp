@@ -6,10 +6,9 @@
 
 // videos here:
 #include "bouncing_pumpkin.h"
-#include "haloween_vid.h"
 #include "sabremation.h"
 
-int sel_video = 0; // only used in main so no need to move
+int sel_video = 0;  // only used in main so no need to move
 
 LIS331 xl;  // accelerometer thing
 
@@ -22,8 +21,8 @@ void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 
 bool flash_now = false;  // whether currently doing a flash
 // motors
-RP2040_PWM* motor_Right;
-RP2040_PWM* motor_Left;
+BidirDShotX1* motor_Right;
+BidirDShotX1* motor_Left;
 
 // safety stuff
 unsigned long stopflag_time = 0;
@@ -42,7 +41,7 @@ bool trimMode = false;
 float head_trim = 0;
 int image_mode;
 bool emote;
-float invert  = 1;
+float invert = 1;
 
 // rotation tracking
 float angle = 0;                    // current robot angle
@@ -58,7 +57,6 @@ float x = 0.3;
 float a0 = 1 - x;
 float b1 = x;
 float prev_filt_val = 0;
-
 
 void setup() {
   // put your setup code here, to run once:
@@ -86,11 +84,22 @@ void setup() {
   FastLED.clear();                                                   // ensure all LEDs start off
   FastLED.show();
 
+  delay(500);  // experimental delay to allow time for ESC boot before we start sending packets
+
   // initialise motors
-  motor_Right = new RP2040_PWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(0, 1));
-  motor_Left = new RP2040_PWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(0, 1));
+  motor_Right = new BidirDShotX1(MOTOR_RIGHT_PIN, 300);
+  motor_Left = new BidirDShotX1(MOTOR_LEFT_PIN, 300);
+  motor_Left->sendThrottle(0);
+  motor_Right->sendThrottle(0);
+
   Serial.println("Thread 0 started");
-  delay(1000);  // wait for ESCs to start up
+  // send throttle 0 in loop till start delay has finished
+  unsigned long start = millis();
+  while (millis() - start < ESC_start_delay) {
+    motor_Left->sendThrottle(0);
+    motor_Right->sendThrottle(0);
+    delayMicroseconds(200);
+  }
 }
 
 void setup1() {
@@ -124,7 +133,6 @@ void setup1() {
   yoff = 10;
 
   load_vid(bouncing_pumpkin);
-  load_vid(haloween_vid);
 }
 
 void loop() {                    // Loop 0 handles motor commands, angle calc and updating pixels
@@ -132,18 +140,21 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   static int loopcount = 0;      // # timing
 
   // angle calc
-  zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;                     // add in head for changing angle
-  angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
+  zrot = zrotspd - (head * HEAD_CONTROL_SCALE) -
+         head_trim;  // add in head for changing angle
+  angle =
+      fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   last_angle_time = micros();
 
-  int left_sig, right_sig;
+  float left_sig, right_sig;
 
   // robot control modes
   if (spin > 0) {     // spinning mode
     if (!headMode) {  // spinning mode
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
-      float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
+      float delta = (TRANS_SIGN * trans * cosresult) +
+                    (SLIP_SIGN * slip * sinresult);  // calculate motor delta
       left_sig = spin + delta;
       right_sig = -spin + delta;
       paint_screen(angle);  // update screen
@@ -155,7 +166,6 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   } else {  // normal robot mode
 
     rainbow_line();  // draw rainbow
-    // slip = slip * 0.1;  // reduce turning speed
 
     // normal driving with minimum motor speed
     left_sig = slip + trans;
@@ -168,8 +178,6 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading images
-                // At the moment, speed will not be calculated if we always have a compass reading available, this could mean we don't get anything telemetry wise at low speed
-
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
   unsigned long now = micros();
   static int loopcount = 0;  // # timing
@@ -180,10 +188,10 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   if (headMode) {
     if (spin == 0) {  // not spinning head mode
 
-
-    } else {                                      // spinning head mode
-      static float head_change = 0;               // var to hold heading change between loops while button is held
-      if (abs(slip) > 200 || abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
+    } else {                         // spinning head mode
+      static float head_change = 0;  // var to hold heading change between loops while button is held
+      if (abs(slip) > 200 ||
+          abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
         head_change = degrees(atan2(-slip, trans));
       } else {  // doing it this way makes is to you have to release the button after the stick
 
@@ -204,7 +212,8 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     float yg = xl.convertToG(200, y);
     float zg = xl.convertToG(200, z);
 
-    float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
+    float measure_accel =
+        9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
 
     // FILTER ACCEL
     float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
@@ -219,7 +228,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     // Serial.println(zrot / 6);
     lastGpsUpdate = now;
     // Update the GPS telemetry data with the new values.
-    crsf.telemetryWriteGPS(0, head_delay, zrotspd * 6000 / 360, 0, accel_rad * 100 * correct, 0);
+    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, accel_rad * 100 * correct, 0);
   }
 
   int sel;
@@ -230,11 +239,17 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   } else {
     sel = 2;
   }
-  
+
   if (sel != sel_video) {
-    if (sel == 0) { load_vid(haloween_vid); }
-    if (sel == 1) { load_vid(bouncing_pumpkin); }
-    if (sel == 2) { load_vid(sabremation); }
+    if (sel == 0) {
+      load_vid(sabremation);
+    }
+    if (sel == 1) {
+      load_vid(bouncing_pumpkin);
+    }
+    if (sel == 2) {
+      load_vid(sabremation);
+    }
     sel_video = sel;
   }
 

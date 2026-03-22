@@ -3,41 +3,39 @@
 #pragma once
 
 // Movement settings
-constexpr int RIGHT_MOTOR_DIRECTION = -1;  // #usersetting
-constexpr int LEFT_MOTOR_DIRECTION = -1;   // #usersetting
-constexpr float HEAD_CONTROL_SCALE = 0.33; // #advancedusersetting
-constexpr int TRANS_SIGN = -1; // #advancedusersetting
-constexpr int SLIP_SIGN = -1;  // #advancedusersetting
+constexpr int RIGHT_MOTOR_DIRECTION = -1;   // #usersetting
+constexpr int LEFT_MOTOR_DIRECTION = -1;    // #usersetting
+constexpr float HEAD_CONTROL_SCALE = 0.33;  // #advancedusersetting
+constexpr int TRANS_SIGN = -1;              // #advancedusersetting
+constexpr int SLIP_SIGN = -1;               // #advancedusersetting
 
 // Screen settings
 constexpr int NUM_ANGLES = 150;
-constexpr int NUM_LEDS = 23; // #usersetting
+constexpr int NUM_LEDS = 23;  // #usersetting
 constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
 
 // Settings
-constexpr int deadzone = 30;         // #advancedusersetting for transmitter sticks
-constexpr int max_head = 360;        // #advancedusersetting max heading change in deg/s
-constexpr int oneshot_Freq = 3500;
-constexpr int speed_int = 300;       // #milliseconds between speed measurements
-constexpr int head_delay = 17;       // #usersetting 17 seems good for v4, may need to be adjusted in future
-constexpr float correct_max = 0.2;   // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
-constexpr int min_drive = 80;        // #advancedusersetting
-constexpr int rainbow_delay = 40;    // #usersetting
-constexpr int flash_delay = 10;      // #usersetting
-bool flash_now = false;              // runtime state, cannot be constexpr
+constexpr int deadzone = 30;           // #advancedusersetting for transmitter sticks
+constexpr int max_head = 360;          // #advancedusersetting max heading change in deg/s
+constexpr float correct_max = 0.2;     // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+constexpr float min_drive = 0.08;      // #advancedusersetting
+constexpr int rainbow_delay = 40;      // #usersetting
+constexpr int flash_delay = 10;        // #usersetting
+constexpr int ESC_start_delay = 3000;  // #advancedusersetting
+constexpr int approx_accel_rad = 55;   // #usersetting, not used yet will be used for first pass when calibrating
 
 // Robot stuff
 constexpr float accel_rad = 84.0 / 1000.0;  // #usersetting - input in mm, outputs m. Will be replaced by new calibration system
-constexpr bool flip_rot_direction = true;    // #usersetting - false for rotating with compass, true for against
+constexpr bool flip_rot_direction = true;   // #usersetting - false for rotating with compass, true for against
 
 // Pins
-constexpr int MOTOR_RIGHT_PIN = 4;   
-constexpr int MOTOR_LEFT_PIN = 2;    
-constexpr int LED_POWER_PIN = 11;    // builtin LED power control pin
-constexpr int LED_PIN = 12;          // data pin for NeoPixel
-constexpr int headPin = 27;          // LED heading data pin
-constexpr int headClock = 28;        // LED clock pin
-constexpr int accel_pow = 26;       // pin to power accelerometer, allows it to be restarted easily
+constexpr int MOTOR_RIGHT_PIN = 4;
+constexpr int MOTOR_LEFT_PIN = 3;
+constexpr int LED_POWER_PIN = 11;  // builtin LED power control pin
+constexpr int LED_PIN = 12;        // data pin for NeoPixel
+constexpr int headPin = 27;        // LED heading data pin
+constexpr int headClock = 28;      // LED clock pin
+constexpr int accel_pow = 26;      // pin to power accelerometer, allows it to be restarted easily
 
 // RF stuff
 constexpr int SLIP_CH = 1;

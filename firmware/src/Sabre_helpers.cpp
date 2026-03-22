@@ -1,6 +1,21 @@
-#include "sabre_globals.h" 
+#include "sabre_globals.h"
+float servoTofloat(float servoSignal, int stickmode);
+int powerCurve(int x);
 
-void command_motors(int left, int right) {
+// E-RPM readings
+uint32_t erpm_left = 0;
+uint32_t erpm_right = 0;
+
+int floatToDshot(float value) {
+  // DShot 3D mode: 0 = stop, 48-1047 = reverse (48 slowest), 1049-2047 = forward (2047 fastest), 1048 = unused
+    value = constrain(value, -1.0f, 1.0f);  // limits to ±1 stick commands can easily push outside of this range
+
+    if (value == 0) return 0;
+    if (value > 0) return (int)(value * 998) + 1049;  // 1049-2047
+    return (int)((value + 1) * 999) + 48;             // 48-1047
+}
+
+void command_motors(float left, float right) {
   unsigned long nowish = millis();
   if (nowish - stopflag_time > E_stop_time) {  // E-stop, lost signal from transmitter
     right = 0;
@@ -8,86 +23,68 @@ void command_motors(int left, int right) {
   } else {
     if (watchdog_enabled) {
       watchdog_update();
-    } else if (nowish > E_stop_time) {  // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
-      watchdog_enable(watchdog_time, 0);
+    } else if (nowish > E_stop_time) {    // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
+      watchdog_enable(watchdog_time, 0);  // 0 sets mode to reboot if lost connection
       watchdog_enabled = true;
       watchdog_update();
     }
   }
-  motor_Left->setPWM(MOTOR_LEFT_PIN, oneshot_Freq, oneshot_Duty(left, LEFT_MOTOR_DIRECTION));
-  motor_Right->setPWM(MOTOR_RIGHT_PIN, oneshot_Freq, oneshot_Duty(right, RIGHT_MOTOR_DIRECTION));
+
+  // get ERPM telemetry
+  motor_Left->getTelemetryErpm(&erpm_left);
+  motor_Right->getTelemetryErpm(&erpm_right);
+
+  // Convert -1.0 to 1.0 -> 0 to 2000 which DSHOT expects
+  int dshot_left = floatToDshot(left);
+  int dshot_right = floatToDshot(right);
+
+  motor_Left->sendThrottle(dshot_left);
+  motor_Right->sendThrottle(dshot_right);
+
+  Serial.println("L: " + String(left) + " DSL: " + String(dshot_left) + " R: " + String(right) + " DSR: " + String(dshot_right));
+  // Serial.println("dshot_right: " + String(dshot_right));
 }
 
-int powerCurve(int x) {
+float powerCurve(float x) {
   int power = 3;
-  long divisor = (pow(1000, power - 1));
-  return (pow(x, power)) / divisor;
+  return pow(x, power);
 }
 
-float servoTothoucentage(int servoSignal, int stickmode) {
-  // Map the servo signal to the range of -1000 to +1000 or 0 to 1000, provide deazone
-  // stickmode 0 for a channel between -1000 and 1000, 1 for channel between 0 and 1000
+float servoTofloat(float servoSignal, int stickmode) {
+  // Map the servo signal to the range of -1 to +1 or 0 to 1, provide deazone
+  // stickmode 0 for a channel between -1 and 1, stickmode 1 for channel between 0 and 1
+  // Deadzone code modifies servo inpout signal before mapping
 
-  int lower;
-  if (stickmode == 0) {  // deadzones
-    lower = 0;
-    if (servoSignal <= 1000 + deadzone) {
-      servoSignal = 1000;
-    }
-  } else if (stickmode == 1) {
-    lower = -1000;
-    if (servoSignal >= 1500 - deadzone && servoSignal <= 1500 + deadzone) {
-      servoSignal = 1500;
-    }
+  if (stickmode == 0)  // Bottom deadzone
+  {
+    servoSignal = (servoSignal <= 1000 + deadzone) ? 1000 : servoSignal;
+    return (servoSignal - 1000.0f) / 1000.0f;  // 1000-2000 -> 0 to 1
+  } else if (stickmode == 1)                   // Centred deadzone
+  {
+    servoSignal = (servoSignal >= 1500 - deadzone && servoSignal <= 1500 + deadzone) ? 1500 : servoSignal;
+    return (servoSignal - 1500.0f) / 500.0f;  // 1000-2000 -> -1 to 1
+  } else {
+    return 0.0f;  // invalid stickmode
   }
-  return map(servoSignal, 1000, 2000, lower, 1000);
-}
-
-float oneshot_Duty(int thoucentage, int dir_flip) {  // function to turn thoucentages into oneshot pulses
-  if (abs(dir_flip) != 1) {                          // check dirlfip is ±1
-    Serial.println("dirflip set incorrectly in motor settup");
-    while (true) {
-      delay(1000);
-    }
-  }
-
-  thoucentage = thoucentage * dir_flip;  // apply direction flip
-
-  if (thoucentage > 1000) {  // cap to ± 1000
-    thoucentage = 1000;
-  }
-  if (thoucentage < -1000) {
-    thoucentage = -1000;
-  }
-  float oneshot_P = 1000000 / oneshot_Freq;
-  float inMin = -1000.0f;
-  float inMax = 1000.0f;
-  float outMin = 125.0f;
-  float outMax = 250.0f;  // these numbers reached experimentally by playing with speeds, I think 125 and 250 are the defaults
-  float mic = outMin + (thoucentage - inMin) * (outMax - outMin) / (inMax - inMin);
-
-  float dut = mic * 100 / oneshot_P;  //turn into percentage duty cycle
-  return dut;
 }
 
 void updateCRSF() {
   // transmitter inputs
   crsf.update();
 
-  slip = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
-  trans = powerCurve(servoTothoucentage(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
-  spin = servoTothoucentage(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
-  head = servoTothoucentage(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
-  correct = ((servoTothoucentage(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1) / 1000.0) * -correct_max) + 1;
+  slip = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
+  trans = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
+  spin = servoTofloat(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
+  head = servoTofloat(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
+  correct = ((servoTofloat(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1)) * -correct_max) + 1;
   headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
-  head_delay = map(crsf.rcToUs(crsf.getChannel(DIR_CH)), 1000, 2000, -5, 5);
   trimMode = crsf.rcToUs(crsf.getChannel(TRIM_CH)) > 1500;
   image_mode = crsf.rcToUs(crsf.getChannel(LIGHT_CH));
   emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
   if (crsf.rcToUs(crsf.getChannel(INVERT_CH)) > 1500) {
     invert = 1;
   } else {
-    invert - 1;
+    invert = -1;
   }
 }
 
