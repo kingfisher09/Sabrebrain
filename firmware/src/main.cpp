@@ -168,8 +168,8 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
       right_sig = -spin + delta;
       paint_screen(angle);  // update screen
     } else {                // if headmode, just keep spinnin
-      left_sig = spin * invert;
-      right_sig = -spin * invert;
+      left_sig = -spin * default_rot_dir * invert;
+      right_sig = spin * default_rot_dir * invert;
     }
 
   } else {  // normal robot mode
