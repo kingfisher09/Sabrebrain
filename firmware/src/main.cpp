@@ -11,6 +11,8 @@
 int sel_video = 0;  // only used in main so no need to move
 
 LIS331 xl;  // accelerometer thing
+int g_range = 100;
+void check_g_range(float reading);
 
 CRSFforArduino crsf = CRSFforArduino(&Serial1);
 
@@ -126,7 +128,7 @@ void setup1() {
 
   while (!accel_active) {
     xl.begin(LIS331::USE_I2C);
-    xl.setFullScale(LIS331::MED_RANGE);
+    xl.setFullScale(LIS331::LOW_RANGE);
     xl.setODR(LIS331::DR_1000HZ);
     delay(100);
     if (xl.newXData()) {
@@ -149,10 +151,8 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   static int loopcount = 0;      // # timing
 
   // angle calc
-  zrot = zrotspd - (head * HEAD_CONTROL_SCALE) -
-         head_trim;  // add in head for changing angle
-  angle =
-      fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
+  zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;  // add in head for changing angle
+  angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   last_angle_time = micros();
 
   float left_sig, right_sig;
@@ -162,8 +162,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
     if (!headMode) {  // spinning mode
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
-      float delta = (TRANS_SIGN * trans * cosresult) +
-                    (SLIP_SIGN * slip * sinresult);  // calculate motor delta
+      float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
       left_sig = spin + delta;
       right_sig = -spin + delta;
       paint_screen(angle);  // update screen
@@ -217,9 +216,12 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     xl.readAxes(x, y, z);
     x = x + xoff;
     y = y + yoff;
-    float xg = xl.convertToG(200, x);
-    float yg = xl.convertToG(200, y);
-    float zg = xl.convertToG(200, z);
+    float xg = xl.convertToG(g_range, x);
+    float yg = xl.convertToG(g_range, y);
+    float zg = xl.convertToG(g_range, z);
+
+    float max_g = max(max(fabs(xg), fabs(yg)), fabs(zg));
+    check_g_range(max_g);
 
     float measure_accel =
         9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
@@ -273,5 +275,62 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   // flash annimation
   if (flash_now) {
     flashing();
+  }
+}
+
+void check_g_range(float reading) {
+  // #AddLogging
+  static int high_count = 0;
+  static int low_count = 0;
+
+  if (reading >= g_range * 0.9f) {
+    high_count += 1;
+    low_count = 0;
+    if (high_count < 20) return;
+    // increase range
+    switch (g_range) {
+      case 100:
+        g_range = 200;
+        xl.setFullScale(LIS331::MED_RANGE);
+        break;
+
+      case 200:
+        g_range = 400;
+        xl.setFullScale(LIS331::HIGH_RANGE);
+        break;
+
+      default:
+        break;
+    }
+
+    high_count = 0;
+    low_count = 0;
+
+  } else if (reading <= g_range * 0.4f) {
+    low_count += 1;
+    high_count = 0;
+    if (low_count < 20) return;
+    // decrease range
+    switch (g_range) {
+      case 200:
+        g_range = 100;
+        xl.setFullScale(LIS331::LOW_RANGE);
+        break;
+
+      case 400:
+        g_range = 200;
+        xl.setFullScale(LIS331::MED_RANGE);
+        break;
+
+      default:
+        break;
+    }
+
+    high_count = 0;
+    low_count = 0;
+  } else {
+    // reset both counters
+    high_count = 0;
+    low_count = 0;
   }
 }
