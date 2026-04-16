@@ -21,7 +21,7 @@ extern "C" {  // tels compiler this is C, not C++
 #include "SparkFun_LIS331.h"
 
 // Sabrebrain headers
-#include "sabre_config"
+#include "sabre_config.h"
 #include "sabre_vid.h"
 
 // Forward declarations
@@ -43,19 +43,19 @@ extern uint32_t erpm_right;
 extern const int MOTOR_RIGHT_PIN;
 extern const int MOTOR_LEFT_PIN;
 
-// ---- RF channels (defined in main.cpp) ----
-extern CRSFforArduino crsf;
-extern const int SLIP_CH;
-extern const int TRANS_CH;
-extern const int SPIN_CH;
-extern const int HEAD_CH;
-extern const int INVERT_CH;
-extern const int CORRECT_CH;
-extern const int HEAD_MODE_CH;
-extern const int DIR_CH;
-extern const int LIGHT_CH;
-extern const int TRIM_CH;
-extern const int EMOTE_CH;
+// ---- RF channels (defined in main.cpp) ---- I
+// extern CRSFforArduino crsf;
+// extern const int SLIP_CH;
+// extern const int TRANS_CH;
+// extern const int SPIN_CH;
+// extern const int HEAD_CH;
+// extern const int INVERT_CH;
+// extern const int CORRECT_CH;
+// extern const int HEAD_MODE_CH;
+// extern const int DIR_CH;
+// extern const int LIGHT_CH;
+// extern const int TRIM_CH;
+// extern const int EMOTE_CH;
 
 // ---- Safety (defined in main.cpp) ----
 extern unsigned long stopflag_time;

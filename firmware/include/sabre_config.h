@@ -15,6 +15,7 @@ constexpr int SLIP_SIGN = -1;               // #advancedusersetting
 constexpr int default_rot_dir = 1;          // #usersetting 1 for cw, -1 ccw
 constexpr bool desync_detection = true;     // #usersetting
 constexpr int desync_detect_time = 0.2 * 1000;     // #advancedusersetting
+constexpr float head_trim = 0;
 
 // Screen settings
 constexpr int NUM_ANGLES = 150;
@@ -52,8 +53,5 @@ constexpr int SPIN_CH = 3;
 constexpr int HEAD_CH = 4;
 constexpr int INVERT_CH = 5;
 constexpr int CORRECT_CH = 6;  // used to correct accel radius
-constexpr int HEAD_MODE_CH = 7;
-constexpr int DIR_CH = 8;  // used to correct heading offset
-constexpr int LIGHT_CH = 9;
-constexpr int TRIM_CH = 10;   // used to trim rotation
-constexpr int EMOTE_CH = 11;  // used to trigger emote message
+constexpr int IMAGE_CH = 7;
+constexpr int EMOTE_CH = 8;  // used to trigger emote message

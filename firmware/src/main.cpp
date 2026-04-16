@@ -38,9 +38,7 @@ float trans = 0;
 float head = 0;
 float spin = 0;
 float correct = 1;
-bool headMode;
-bool trimMode = false;
-float head_trim = 0;
+bool headMode = false;  // remove this ASAP
 int image_mode;
 bool emote;
 float invert = 1;
@@ -151,7 +149,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   static int loopcount = 0;      // # timing
 
   // angle calc
-  zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;  // add in head for changing angle
+  zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;                     // add in head for changing angle
   angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   last_angle_time = micros();
 
@@ -159,17 +157,12 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
 
   // robot control modes
   if (spin > 0) {     // spinning mode
-    if (!headMode) {  // spinning mode
       float cosresult = cos(radians(angle));
       float sinresult = sin(radians(angle));
       float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
       left_sig = spin + delta;
       right_sig = -spin + delta;
       paint_screen(angle);  // update screen
-    } else {                // if headmode, just keep spinnin
-      left_sig = -spin * default_rot_dir * invert;
-      right_sig = spin * default_rot_dir * invert;
-    }
 
   } else {  // normal robot mode
 
@@ -182,7 +175,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
-  command_motors(left_sig, right_sig);
+  command_motors(left_sig * invert, right_sig * invert);
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading images
@@ -191,26 +184,6 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   static int loopcount = 0;  // # timing
 
   updateCRSF();  // update control
-  trim();
-
-  if (headMode) {
-    if (spin == 0) {  // not spinning head mode
-
-    } else {                         // spinning head mode
-      static float head_change = 0;  // var to hold heading change between loops while button is held
-      if (abs(slip) > 200 ||
-          abs(trans) > 200) {  // make sure stick is a reasonable distance from centre. Otherwise the stick vibration when released gives the wrong result
-        head_change = degrees(atan2(-slip, trans));
-      } else {  // doing it this way makes is to you have to release the button after the stick
-
-        angle = angle - head_change;
-        flash();
-
-        head_change = 0;
-      }
-    }
-  }
-
   if (xl.newXData()) {
     int16_t x, y, z;
     xl.readAxes(x, y, z);
@@ -263,7 +236,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     }
     sel_video = sel;
   }
-
+  
   if (!emote) {
     // play annimation
     load_frame();

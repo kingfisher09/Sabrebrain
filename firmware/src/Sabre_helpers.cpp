@@ -109,43 +109,25 @@ float servoTofloat(float servoSignal, int stickmode) {
 }
 
 void updateCRSF() {
+
   // transmitter inputs
   crsf.update();
-
+  
   slip = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
   trans = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
   spin = servoTofloat(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
   head = servoTofloat(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
   correct = ((servoTofloat(crsf.rcToUs(crsf.getChannel(CORRECT_CH)), 1)) * -correct_max) + 1;
-  headMode = crsf.rcToUs(crsf.getChannel(HEAD_MODE_CH)) > 1500;
-  trimMode = crsf.rcToUs(crsf.getChannel(TRIM_CH)) > 1500;
-  image_mode = crsf.rcToUs(crsf.getChannel(LIGHT_CH));
+  image_mode = crsf.rcToUs(crsf.getChannel(IMAGE_CH));
   emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
   if (crsf.rcToUs(crsf.getChannel(INVERT_CH)) > 1500) {
     invert = 1;
   } else {
     invert = -1;
   }
+  
 }
 
-void trim() {
-  static bool trimming = false;
-  if (trimMode) {  // only fires if trim channel active AND has not already fired
-    if (!trimming && head != 0) {
-      head_trim += head * HEAD_CONTROL_SCALE;
-      trimming = true;
-    }
-  }
-
-  if (trimming) {
-    if (head == 0) {  // stick centred again
-      trimming = false;
-      flash();  // flash to let user know
-    } else {
-      head = 0;  // avoid doubling the effect
-    }
-  }
-}
 
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
   /* Here is where you can read out the link statistics.

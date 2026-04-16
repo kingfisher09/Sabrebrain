@@ -128,9 +128,6 @@ void load_frame() {
   }
 }
 
-
-
-
 void flashing() {
   static unsigned long lastFlashUpdate = 0;  // variable to time rainbow
   static int flash_pos = 0;
