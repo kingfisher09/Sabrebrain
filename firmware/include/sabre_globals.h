@@ -44,18 +44,7 @@ extern const int MOTOR_RIGHT_PIN;
 extern const int MOTOR_LEFT_PIN;
 
 // ---- RF channels (defined in main.cpp) ---- I
-// extern CRSFforArduino crsf;
-// extern const int SLIP_CH;
-// extern const int TRANS_CH;
-// extern const int SPIN_CH;
-// extern const int HEAD_CH;
-// extern const int INVERT_CH;
-// extern const int CORRECT_CH;
-// extern const int HEAD_MODE_CH;
-// extern const int DIR_CH;
-// extern const int LIGHT_CH;
-// extern const int TRIM_CH;
-// extern const int EMOTE_CH;
+extern CRSFforArduino crsf;
 
 // ---- Safety (defined in main.cpp) ----
 extern unsigned long stopflag_time;
@@ -71,7 +60,6 @@ extern float spin;
 extern float correct;
 extern bool headMode;
 extern bool trimMode;
-extern float head_trim;
 extern int image_mode;
 extern bool emote;
 extern float invert;

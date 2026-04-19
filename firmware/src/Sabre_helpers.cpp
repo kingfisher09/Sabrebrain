@@ -128,7 +128,6 @@ void updateCRSF() {
   
 }
 
-
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {
   /* Here is where you can read out the link statistics.
     You have access to the following data:

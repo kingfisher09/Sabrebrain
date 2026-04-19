@@ -156,13 +156,18 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   float left_sig, right_sig;
 
   // robot control modes
-  if (spin > 0) {     // spinning mode
-      float cosresult = cos(radians(angle));
-      float sinresult = sin(radians(angle));
-      float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
-      left_sig = spin + delta;
-      right_sig = -spin + delta;
-      paint_screen(angle);  // update screen
+  if (spin > 0) {  // spinning mode
+    float cosresult = cos(radians(angle));
+    float sinresult = sin(radians(angle));
+    float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
+
+    // prevent over translating which flips motor direction
+    float limit = spin * MAX_DELTA;
+    delta = (delta > limit) ? limit : ((delta < -limit) ? -limit : delta);
+
+    left_sig = spin + delta;
+    right_sig = -spin + delta;
+    paint_screen(angle);  // update screen
 
   } else {  // normal robot mode
 
@@ -236,7 +241,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     }
     sel_video = sel;
   }
-  
+
   if (!emote) {
     // play annimation
     load_frame();

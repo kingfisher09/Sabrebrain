@@ -6,15 +6,16 @@
 constexpr bool passthrough_mode = false;
 
 // Movement settings
-constexpr int RIGHT_MOTOR_DIRECTION = -1;   // #usersetting
-constexpr int LEFT_MOTOR_DIRECTION = 1;     // #usersetting
-constexpr float min_drive = 0.03;           // #advancedusersetting
-constexpr float HEAD_CONTROL_SCALE = 0.33;  // #advancedusersetting
-constexpr int TRANS_SIGN = -1;              // #advancedusersetting
-constexpr int SLIP_SIGN = -1;               // #advancedusersetting
-constexpr int default_rot_dir = 1;          // #usersetting 1 for cw, -1 ccw
-constexpr bool desync_detection = true;     // #usersetting
-constexpr int desync_detect_time = 0.2 * 1000;     // #advancedusersetting
+constexpr int RIGHT_MOTOR_DIRECTION = 1;        // #usersetting
+constexpr int LEFT_MOTOR_DIRECTION = -1;        // #usersetting
+constexpr float min_drive = 0.03;               // #advancedusersetting
+constexpr float HEAD_CONTROL_SCALE = 330;      // #advancedusersetting
+constexpr int TRANS_SIGN = -1;                  // #advancedusersetting
+constexpr int SLIP_SIGN = -1;                   // #advancedusersetting
+constexpr float MAX_DELTA = 0.3;                // #advancedusersetting - used to limit maximum delta in motor commands when translating
+constexpr int default_rot_dir = 1;              // #usersetting 1 for cw, -1 ccw
+constexpr bool desync_detection = true;         // #usersetting
+constexpr int desync_detect_time = 0.2 * 1000;  // #advancedusersetting
 constexpr float head_trim = 0;
 
 // Screen settings
@@ -23,13 +24,13 @@ constexpr int NUM_LEDS = 23;  // #usersetting
 constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
 
 // Settings
-constexpr int deadzone = 30;               // #advancedusersetting for transmitter sticks
-constexpr int max_head = 360;              // #advancedusersetting max heading change in deg/s
-constexpr float correct_max = 0.2;         // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
-constexpr int rainbow_delay = 40;          // #usersetting
-constexpr int flash_delay = 10;            // #usersetting
-constexpr int ESC_start_delay = 3000;      // #advancedusersetting
-constexpr int approx_accel_rad = 55;       // #usersetting, not used yet will be used for first pass when calibrating
+constexpr int deadzone = 30;              // #advancedusersetting for transmitter sticks
+constexpr int max_head = 360;             // #advancedusersetting max heading change in deg/s
+constexpr float correct_max = 0.2;        // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+constexpr int rainbow_delay = 40;         // #usersetting
+constexpr int flash_delay = 10;           // #usersetting
+constexpr int ESC_start_delay = 3000;     // #advancedusersetting
+constexpr int approx_accel_rad = 55;      // #usersetting, not used yet will be used for first pass when calibrating
 constexpr int max_dshot_send_freq = 500;  // Hz, likely not a user setting
 constexpr int dshot_delay = 1000000 / max_dshot_send_freq;
 
