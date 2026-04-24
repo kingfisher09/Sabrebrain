@@ -1,0 +1,58 @@
+// This file will hold the code to load and apply user and defualt settings. More variables will move here soon
+
+#pragma once
+
+// Modes
+constexpr bool passthrough_mode = false;
+
+// Movement settings
+constexpr int RIGHT_MOTOR_DIRECTION = 1;        // #usersetting
+constexpr int LEFT_MOTOR_DIRECTION = -1;        // #usersetting
+constexpr float min_drive = 0.03;               // #advancedusersetting
+constexpr float HEAD_CONTROL_SCALE = 330;      // #advancedusersetting
+constexpr int TRANS_SIGN = -1;                  // #advancedusersetting
+constexpr int SLIP_SIGN = -1;                   // #advancedusersetting
+constexpr float MAX_DELTA = 0.3;                // #advancedusersetting - used to limit maximum delta in motor commands when translating
+constexpr int default_rot_dir = 1;              // #usersetting 1 for cw, -1 ccw
+constexpr bool desync_detection = true;         // #usersetting
+constexpr int desync_detect_time = 0.2 * 1000;  // #advancedusersetting
+constexpr float head_trim = 0;
+
+// Screen settings
+constexpr int NUM_ANGLES = 150;
+constexpr int NUM_LEDS = 23;  // #usersetting
+constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
+
+// Settings
+constexpr int deadzone = 30;              // #advancedusersetting for transmitter sticks
+constexpr int max_head = 360;             // #advancedusersetting max heading change in deg/s
+constexpr float correct_max = 0.2;        // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+constexpr int rainbow_delay = 40;         // #usersetting
+constexpr int flash_delay = 10;           // #usersetting
+constexpr int ESC_start_delay = 3000;     // #advancedusersetting
+constexpr int approx_accel_rad = 55;      // #usersetting, not used yet will be used for first pass when calibrating
+constexpr int max_dshot_send_freq = 500;  // Hz, likely not a user setting
+constexpr int dshot_delay = 1000000 / max_dshot_send_freq;
+
+// Robot stuff
+constexpr float accel_rad = 84.0 / 1000.0;  // #usersetting - input in mm, outputs m. Will be replaced by new calibration system
+constexpr bool flip_rot_direction = true;   // #usersetting - false for rotating with compass, true for against
+
+// Pins
+constexpr int MOTOR_RIGHT_PIN = 4;
+constexpr int MOTOR_LEFT_PIN = 3;
+constexpr int LED_POWER_PIN = 11;  // builtin LED power control pin
+constexpr int LED_PIN = 12;        // data pin for NeoPixel
+constexpr int headPin = 27;        // LED heading data pin
+constexpr int headClock = 28;      // LED clock pin
+constexpr int accel_pow = 26;      // pin to power accelerometer, allows it to be restarted easily
+
+// RF stuff
+constexpr int SLIP_CH = 1;
+constexpr int TRANS_CH = 2;
+constexpr int SPIN_CH = 3;
+constexpr int HEAD_CH = 4;
+constexpr int INVERT_CH = 5;
+constexpr int CORRECT_CH = 6;  // used to correct accel radius
+constexpr int IMAGE_CH = 7;
+constexpr int EMOTE_CH = 8;  // used to trigger emote message
