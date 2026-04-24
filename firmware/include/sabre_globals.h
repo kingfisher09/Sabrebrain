@@ -64,8 +64,14 @@ extern int image_mode;
 extern bool emote;
 extern float invert;
 
+// ---- Structures ----
+struct motorSpeeds {
+    uint32_t left;
+    uint32_t right;
+};
+
 // ---- Function declarations ----
-void command_motors(float left, float right);
+motorSpeeds command_motors(float left, float right);
 void updateCRSF();
 void trim();
 void paint_screen(float angle);

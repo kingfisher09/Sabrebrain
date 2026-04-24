@@ -51,6 +51,7 @@ float zrot = 0;                     // measured speed with heading control injec
 int16_t xoff = 0;
 int16_t yoff = 0;
 int16_t zoff = 0;
+motorSpeeds motor_speeds;
 
 // filter settings
 float x = 0.3;
@@ -180,7 +181,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
-  command_motors(left_sig * invert, right_sig * invert);
+  motor_speeds = command_motors(left_sig * invert, right_sig * invert);
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading images
@@ -189,34 +190,48 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   static int loopcount = 0;  // # timing
 
   updateCRSF();  // update control
-  if (xl.newXData()) {
-    int16_t x, y, z;
-    xl.readAxes(x, y, z);
-    x = x + xoff;
-    y = y + yoff;
-    float xg = xl.convertToG(g_range, x);
-    float yg = xl.convertToG(g_range, y);
-    float zg = xl.convertToG(g_range, z);
+  if (speed_source == SensorType::Accelerometer) {
+    if (xl.newXData()) {
+      int16_t x, y, z;
+      xl.readAxes(x, y, z);
+      x = x + xoff;
+      y = y + yoff;
+      float xg = xl.convertToG(g_range, x);
+      float yg = xl.convertToG(g_range, y);
+      float zg = xl.convertToG(g_range, z);
 
-    float max_g = max(max(fabs(xg), fabs(yg)), fabs(zg));
-    check_g_range(max_g);
+      float max_g = max(max(fabs(xg), fabs(yg)), fabs(zg));
+      check_g_range(max_g);
 
-    float measure_accel =
-        9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
+      float measure_accel =
+          9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
 
-    // FILTER ACCEL
-    float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
-    prev_filt_val = filtered_accel;
+      // FILTER ACCEL
+      float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
+      prev_filt_val = filtered_accel;
 
-    zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
+      zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
+    }
+  } else if (speed_source == SensorType::Accelerometer){
+    float average_ERPM = (motor_speeds.left + motor_speeds.right)/2;  // this will need to change when I allow for single motors
+    zrotspd = average_ERPM / (base_ERPM_cal * correct);
   }
 
-  // Telemetry stuff
-  static unsigned long lastGpsUpdate = 0;
+    // Telemetry stuff
+    static unsigned long lastGpsUpdate = 0;
   if (now - lastGpsUpdate >= 500000) {
     // Serial.println(zrot / 6);
     lastGpsUpdate = now;
+
     // Update the GPS telemetry data with the new values.
+    
+    //Telemetry depends on speed measurement mode
+    float telem_calib = 0;
+    if (speed_source == SensorType::Accelerometer) {
+      telem_calib = accel_rad * 100 * correct;
+    } else if (speed_source == SensorType::ERPM){
+      telem_calib  /= base_ERPM_cal * correct;
+    }
     crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, accel_rad * 100 * correct, 0);
   }
 

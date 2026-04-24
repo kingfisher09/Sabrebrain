@@ -31,7 +31,7 @@ int floatToDshot(float value) {
   }
 }
 
-void command_motors(float left, float right) {
+motorSpeeds command_motors(float left, float right) {
   unsigned long nowish = millis();
   if (nowish - stopflag_time > E_stop_time) {  // E-stop, lost signal from transmitter
     right = 0;
@@ -45,15 +45,18 @@ void command_motors(float left, float right) {
       watchdog_update();
     }
   }
-
+  
   // get ERPM telemetry
   motor_Left->getTelemetryErpm(&erpm_left);
   motor_Right->getTelemetryErpm(&erpm_right);
-
+  motorSpeeds return_speeds;
+  return_speeds.left = erpm_left;
+  return_speeds.right = erpm_right;
+  
   // Guard against oversending motor updates
   static unsigned long lastMotorUpdate = 0;
   unsigned long now = micros();
-  if (now - lastMotorUpdate < dshot_delay) return;
+  if (now - lastMotorUpdate < dshot_delay) return return_speeds;
 
   // Convert -1.0 to 1.0 -> DSHOT signals, flip direction as desired
   int dshot_left = floatToDshot(left * LEFT_MOTOR_DIRECTION);
@@ -62,11 +65,8 @@ void command_motors(float left, float right) {
   motor_Left->sendThrottle(dshot_left);
   motor_Right->sendThrottle(dshot_right);
   lastMotorUpdate = now;
-
-  // Userful for debugging, commented for speed of running
-  // Serial.println("L: " + String(left, 3) + " DSL: " + String(dshot_left) + " ERPM_L: " + String(erpm_left) + " | R: " + String(right, 3) + " DSR: " + String(dshot_right) + " ERPM_R: " + String(erpm_right));
   
-  if (!desync_detection) return;
+  if (!desync_detection) return return_speeds;
   
   static bool desyncing = false;
   if ((erpm_left > 63000 && fabs(left) < 0.001f) || ((erpm_right > 63000 && fabs(right) < 0.001f))) {
@@ -83,6 +83,7 @@ void command_motors(float left, float right) {
   } else {
     desyncing = false;
   }
+  return return_speeds;  // would be nice to clean up the returns throughout here
 }
 
 float powerCurve(float x) {
