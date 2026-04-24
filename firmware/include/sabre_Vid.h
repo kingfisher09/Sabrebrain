@@ -1,8 +1,8 @@
-// sabre_Vid.h
+// This header creates a structure called SabreVid that holds an animation
 #pragma once
 #include <Arduino.h>
 #include <FastLED.h>
-#include "sabre_Config.h"
+#include "sabre_config.h"
 
 // -----------------------------------------------------------------------------
 // SabreVid — description of an exported animation for the POV system
@@ -24,7 +24,7 @@ struct SabreVid {
   const uint16_t frameDurationMs;  // Duration of each frame in ms
 
   // --- Data arrays ---
-  const uint8_t (*masks)[SABRE_MASK_BYTES_PER_FRAME];  // Fixed-length 2D array in PROGMEM
+  const uint8_t (*masks)[MASK_BYTES_PER_FRAME];  // Fixed-length 2D array in PROGMEM
   const CRGB* const* diffs;                                           // Array of pointers to per-frame diffs
 
   // --- Accessor functions ---

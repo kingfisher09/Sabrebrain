@@ -20,6 +20,15 @@ extendedLimits: 0
 extendedTrims: 0
 throttleReversed: 0
 checklistInteractive: 0
+flightModeData:
+  0:
+    trim:
+      3:
+        value: -2
+        mode: 0
+    name: ""
+    fadeIn: 0
+    fadeOut: 0
 mixData:
   - destCh: 0
     srcRaw: I0
@@ -39,7 +48,7 @@ mixData:
     mixWarn: 0
     flightModes: 000000000
     offset: 0
-    name: TransS
+    name: SLIP
   - destCh: 1
     srcRaw: I1
     weight: 100
@@ -58,30 +67,11 @@ mixData:
     mixWarn: 0
     flightModes: 000000000
     offset: 0
-    name: TransF
+    name: TRANSL
   - destCh: 2
     srcRaw: I2
     weight: 100
-    swtch: SF0
-    curve:
-      type: 3
-      value: 1
-    delayPrec: 0
-    delayUp: 0
-    delayDown: 0
-    speedPrec: 0
-    speedUp: 0
-    speedDown: 0
-    carryTrim: 0
-    mltpx: ADD
-    mixWarn: 0
-    flightModes: 000000000
-    offset: 0
-    name: ""
-  - destCh: 2
-    srcRaw: I2
-    weight: 100
-    swtch: SF2
+    swtch: NONE
     curve:
       type: 0
       value: 0
@@ -96,7 +86,7 @@ mixData:
     mixWarn: 0
     flightModes: 000000000
     offset: 0
-    name: ""
+    name: SPIN
   - destCh: 3
     srcRaw: I3
     weight: 100
@@ -115,27 +105,8 @@ mixData:
     mixWarn: 0
     flightModes: 000000000
     offset: 0
-    name: Head
+    name: HEADIN
   - destCh: 4
-    srcRaw: I6
-    weight: 100
-    swtch: NONE
-    curve:
-      type: 0
-      value: 0
-    delayPrec: 0
-    delayUp: 0
-    delayDown: 0
-    speedPrec: 0
-    speedUp: 0
-    speedDown: 0
-    carryTrim: 0
-    mltpx: ADD
-    mixWarn: 0
-    flightModes: 000000000
-    offset: 0
-    name: Mag
-  - destCh: 5
     srcRaw: I4
     weight: 100
     swtch: NONE
@@ -153,65 +124,8 @@ mixData:
     mixWarn: 0
     flightModes: 000000000
     offset: 0
-    name: AccelR
-  - destCh: 6
-    srcRaw: I8
-    weight: 100
-    swtch: NONE
-    curve:
-      type: 0
-      value: 0
-    delayPrec: 0
-    delayUp: 0
-    delayDown: 0
-    speedPrec: 0
-    speedUp: 0
-    speedDown: 0
-    carryTrim: 0
-    mltpx: ADD
-    mixWarn: 0
-    flightModes: 000000000
-    offset: 0
-    name: Headmo
-  - destCh: 7
-    srcRaw: I9
-    weight: 100
-    swtch: NONE
-    curve:
-      type: 0
-      value: 0
-    delayPrec: 0
-    delayUp: 0
-    delayDown: 0
-    speedPrec: 0
-    speedUp: 0
-    speedDown: 0
-    carryTrim: 0
-    mltpx: ADD
-    mixWarn: 0
-    flightModes: 000000000
-    offset: 0
-    name: Head A
-  - destCh: 8
-    srcRaw: I7
-    weight: 100
-    swtch: NONE
-    curve:
-      type: 0
-      value: 0
-    delayPrec: 0
-    delayUp: 0
-    delayDown: 0
-    speedPrec: 0
-    speedUp: 0
-    speedDown: 0
-    carryTrim: 0
-    mltpx: ADD
-    mixWarn: 0
-    flightModes: 000000000
-    offset: 0
-    name: Light
-  - destCh: 9
+    name: INVERT
+  - destCh: 5
     srcRaw: I5
     weight: 100
     swtch: NONE
@@ -229,7 +143,45 @@ mixData:
     mixWarn: 0
     flightModes: 000000000
     offset: 0
-    name: Emote
+    name: CORREC
+  - destCh: 6
+    srcRaw: I6
+    weight: 100
+    swtch: NONE
+    curve:
+      type: 0
+      value: 0
+    delayPrec: 0
+    delayUp: 0
+    delayDown: 0
+    speedPrec: 0
+    speedUp: 0
+    speedDown: 0
+    carryTrim: 0
+    mltpx: ADD
+    mixWarn: 0
+    flightModes: 000000000
+    offset: 0
+    name: IMAGE
+  - destCh: 7
+    srcRaw: I7
+    weight: 100
+    swtch: NONE
+    curve:
+      type: 0
+      value: 0
+    delayPrec: 0
+    delayUp: 0
+    delayDown: 0
+    speedPrec: 0
+    speedUp: 0
+    speedDown: 0
+    carryTrim: 0
+    mltpx: ADD
+    mixWarn: 0
+    flightModes: 000000000
+    offset: 0
+    name: EMOTE
 limitData:
   0:
     min: 0
@@ -238,7 +190,7 @@ limitData:
     offset: 0
     ppmCenter: 0
     symetrical: 0
-    name: Slip
+    name: SLIP
     curve: 0
   1:
     min: 0
@@ -247,7 +199,7 @@ limitData:
     offset: 0
     ppmCenter: 0
     symetrical: 0
-    name: Tran
+    name: TRAN
     curve: 0
   2:
     min: 0
@@ -256,7 +208,7 @@ limitData:
     offset: 0
     ppmCenter: 0
     symetrical: 0
-    name: Spin
+    name: SPIN
     curve: 0
   3:
     min: 0
@@ -265,7 +217,34 @@ limitData:
     offset: 0
     ppmCenter: 0
     symetrical: 0
-    name: Head
+    name: HEAD
+    curve: 0
+  4:
+    min: 0
+    max: 0
+    revert: 0
+    offset: 0
+    ppmCenter: 0
+    symetrical: 0
+    name: INVE
+    curve: 0
+  5:
+    min: 0
+    max: 0
+    revert: 0
+    offset: 0
+    ppmCenter: 0
+    symetrical: 0
+    name: CORR
+    curve: 0
+  6:
+    min: 0
+    max: 0
+    revert: 0
+    offset: 0
+    ppmCenter: 0
+    symetrical: 0
+    name: IMAG
     curve: 0
   7:
     min: 0
@@ -274,7 +253,7 @@ limitData:
     offset: 0
     ppmCenter: 0
     symetrical: 0
-    name: Dir
+    name: EMOT
     curve: 0
 expoData:
   - srcRaw: Ail
@@ -289,7 +268,7 @@ expoData:
       type: 0
       value: 0
     trimSource: 0
-    name: ""
+    name: SLIP
   - srcRaw: Ele
     scale: 0
     mode: 3
@@ -302,7 +281,7 @@ expoData:
       type: 0
       value: 0
     trimSource: 0
-    name: ""
+    name: TRANS
   - srcRaw: Thr
     scale: 0
     mode: 3
@@ -315,7 +294,7 @@ expoData:
       type: 0
       value: 0
     trimSource: 0
-    name: ""
+    name: SPIN
   - srcRaw: Rud
     scale: 0
     mode: 3
@@ -328,8 +307,8 @@ expoData:
       type: 0
       value: 0
     trimSource: 0
-    name: ""
-  - srcRaw: P1
+    name: HEAD
+  - srcRaw: SE
     scale: 0
     mode: 3
     chn: 4
@@ -341,21 +320,21 @@ expoData:
       type: 0
       value: 0
     trimSource: 0
-    name: AccelR
-  - srcRaw: SA
+    name: INVERT
+  - srcRaw: P1
     scale: 0
     mode: 3
     chn: 5
     swtch: NONE
     flightModes: 000000000
-    weight: 100
+    weight: -100
     offset: 0
     curve:
-      type: 0
-      value: 0
+      type: 1
+      value: 80
     trimSource: 0
-    name: Emote
-  - srcRaw: SE
+    name: CORREC
+  - srcRaw: SC
     scale: 0
     mode: 3
     chn: 6
@@ -367,8 +346,8 @@ expoData:
       type: 0
       value: 0
     trimSource: 0
-    name: MagArm
-  - srcRaw: SF
+    name: IMAGE
+  - srcRaw: SH
     scale: 0
     mode: 3
     chn: 7
@@ -380,54 +359,24 @@ expoData:
       type: 0
       value: 0
     trimSource: 0
-    name: Ligths
-  - srcRaw: SD
-    scale: 0
-    mode: 3
-    chn: 8
-    swtch: NONE
-    flightModes: 000000000
-    weight: 100
-    offset: 0
-    curve:
-      type: 0
-      value: 0
-    trimSource: 0
-    name: Head
-  - srcRaw: P2
-    scale: 0
-    mode: 3
-    chn: 9
-    swtch: NONE
-    flightModes: 000000000
-    weight: 100
-    offset: 0
-    curve:
-      type: 0
-      value: 0
-    trimSource: 0
-    name: Head A
+    name: EMOTE
 inputNames:
   0:
-    val: Ail
+    val: SLP
   1:
-    val: Ele
+    val: TRN
   2:
-    val: Thr
+    val: SPN
   3:
-    val: Rud
+    val: HED
   4:
-    val: AR
+    val: INV
   5:
-    val: Emt
+    val: CRT
   6:
-    val: Arm
+    val: IMG
   7:
-    val: LGT
-  8:
-    val: Hd
-  9:
-    val: Hda
+    val: EMT
 curves:
   0:
     type: 1
@@ -442,7 +391,7 @@ points:
 logicalSw:
   0:
     func: FUNC_ANEG
-    def: P1,4
+    def: NONE,4
     delay: 0
     duration: 5
     andsw: NONE
@@ -450,7 +399,7 @@ logicalSw:
     lsState: 0
   1:
     func: FUNC_ANEG
-    def: P2,4
+    def: NONE,4
     delay: 0
     duration: 5
     andsw: NONE
@@ -460,11 +409,11 @@ customFn:
   0:
     swtch: L1
     func: HAPTIC
-    def: 0,1,1x
+    def: 0,1,1
   1:
     swtch: L2
     func: HAPTIC
-    def: 0,1,1x
+    def: 0,1,1
 swashR:
   type: TYPE_NONE
   value: 0
