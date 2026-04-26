@@ -6,7 +6,7 @@
 constexpr bool passthrough_mode = false;
 
 // Movement settings
-constexpr int RIGHT_MOTOR_DIRECTION = -1;        // #usersetting - 1 for ST, -1 for DN
+constexpr int RIGHT_MOTOR_DIRECTION = 1;        // #usersetting _ 1 for Sabrtooth, -1 for Dreadnough
 constexpr int LEFT_MOTOR_DIRECTION = -1;        // #usersetting
 constexpr float min_drive = 0.03;               // #advancedusersetting
 constexpr float HEAD_CONTROL_SCALE = 330;      // #advancedusersetting
@@ -26,7 +26,7 @@ constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
 // Settings
 constexpr int deadzone = 30;              // #advancedusersetting for transmitter sticks
 constexpr int max_head = 360;             // #advancedusersetting max heading change in deg/s
-constexpr float correct_max = 0.8;        // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
+constexpr float correct_max = 0.1;        // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 constexpr int rainbow_delay = 40;         // #usersetting
 constexpr int flash_delay = 10;           // #usersetting
 constexpr int ESC_start_delay = 3000;     // #advancedusersetting
@@ -40,14 +40,14 @@ enum class SensorType  {
     ERPM
 };
 
-constexpr SensorType speed_source = SensorType::ERPM;
-constexpr float accel_rad = 84.0 / 1000.0;  // #usersetting - input in mm, outputs m. Will be replaced by new calibration system
-constexpr float base_ERPM_cal = 20;
+constexpr SensorType speed_source = SensorType::ERPM;  // #usersetting
+constexpr float accel_rad = 84.0 / 1000.0;  // #usersetting - input in mm, outputs m. Will be replaced by new calibration system. 
+constexpr float base_ERPM_cal = 5;
 constexpr bool flip_rot_direction = true;   // #usersetting - false for rotating with compass, true for against
 
 // Pins
 constexpr int MOTOR_RIGHT_PIN = 4;
-constexpr int MOTOR_LEFT_PIN = 2;  // Needs to be 2 for dreadnought (as of 2026-04-19) and 3 for sabretooth
+constexpr int MOTOR_LEFT_PIN = 3;  // Needs to be 2 for dreadnought (as of 2026-04-19) and 3 for sabretooth
 constexpr int LED_POWER_PIN = 11;  // builtin LED power control pin
 constexpr int LED_PIN = 12;        // data pin for NeoPixel
 constexpr int headPin = 27;        // LED heading data pin

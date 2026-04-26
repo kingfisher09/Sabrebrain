@@ -45,14 +45,14 @@ motorSpeeds command_motors(float left, float right) {
       watchdog_update();
     }
   }
-  
+
   // get ERPM telemetry
   motor_Left->getTelemetryErpm(&erpm_left);
   motor_Right->getTelemetryErpm(&erpm_right);
   motorSpeeds return_speeds;
   return_speeds.left = erpm_left;
   return_speeds.right = erpm_right;
-  
+
   // Guard against oversending motor updates
   static unsigned long lastMotorUpdate = 0;
   unsigned long now = micros();
@@ -65,20 +65,21 @@ motorSpeeds command_motors(float left, float right) {
   motor_Left->sendThrottle(dshot_left);
   motor_Right->sendThrottle(dshot_right);
   lastMotorUpdate = now;
-  
+
   if (!desync_detection) return return_speeds;
-  
+
   static bool desyncing = false;
   if ((erpm_left > 63000 && fabs(left) < 0.001f) || ((erpm_right > 63000 && fabs(right) < 0.001f))) {
     static uint32_t start_desync = 0;
-    if (!desyncing){
+    if (!desyncing) {
       desyncing = true;
       start_desync = nowish;
     }
     if (nowish - start_desync > desync_detect_time) {
       Serial.println("Desync");
       watchdog_reboot(0, 0, 1);
-      while (true) {};
+      while (true) {
+      };
     }
   } else {
     desyncing = false;
@@ -110,10 +111,9 @@ float servoTofloat(float servoSignal, int stickmode) {
 }
 
 void updateCRSF() {
-
   // transmitter inputs
   crsf.update();
-  
+
   slip = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
   trans = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
   spin = servoTofloat(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
@@ -126,7 +126,6 @@ void updateCRSF() {
   } else {
     invert = -1;
   }
-  
 }
 
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics) {

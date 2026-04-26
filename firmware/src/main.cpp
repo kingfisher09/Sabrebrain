@@ -109,6 +109,7 @@ void setup() {
 void setup1() {
   // Passthrough mode, keep this at the top of setup!
   if (passthrough_mode) {
+    // At some point add an LED indicator for this bit
     while (true) {
       delay(1000);
     }
@@ -212,27 +213,27 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
 
       zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
     }
-  } else if (speed_source == SensorType::Accelerometer){
-    float average_ERPM = (motor_speeds.left + motor_speeds.right)/2;  // this will need to change when I allow for single motors
+  } else if (speed_source == SensorType::ERPM) {
+    float average_ERPM = (motor_speeds.left + motor_speeds.right) / 2;  // this will need to change when I allow for single motors
     zrotspd = average_ERPM / (base_ERPM_cal * correct);
   }
 
-    // Telemetry stuff
-    static unsigned long lastGpsUpdate = 0;
+  // Telemetry stuff
+  static unsigned long lastGpsUpdate = 0;
   if (now - lastGpsUpdate >= 500000) {
     // Serial.println(zrot / 6);
     lastGpsUpdate = now;
 
     // Update the GPS telemetry data with the new values.
-    
-    //Telemetry depends on speed measurement mode
+
+    // Telemetry depends on speed measurement mode
     float telem_calib = 0;
     if (speed_source == SensorType::Accelerometer) {
       telem_calib = accel_rad * 100 * correct;
-    } else if (speed_source == SensorType::ERPM){
-      telem_calib  /= base_ERPM_cal * correct;
+    } else if (speed_source == SensorType::ERPM) {
+      telem_calib = base_ERPM_cal * correct;
     }
-    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, accel_rad * 100 * correct, 0);
+    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, telem_calib * correct, 0);
   }
 
   int sel;
