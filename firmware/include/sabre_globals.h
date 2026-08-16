@@ -22,6 +22,7 @@ extern "C" {  // tels compiler this is C, not C++
 
 // Sabrebrain headers
 #include "sabre_config.h"
+#include "config/sabre_calibration.h"
 #include "sabre_vid.h"
 
 // Forward declarations
@@ -57,14 +58,15 @@ extern float slip;
 extern float trans;
 extern float head;
 extern float spin;
-extern float correct;
 extern bool headMode;
-extern bool trimMode;
 extern int image_mode;
 extern bool emote;
 extern float invert;
+extern bool save_button;
 
 // ---- Structures ----
+extern SabreCalibration calibration;
+extern bool calibration_loaded;
 struct motorSpeeds {
     uint32_t left;
     uint32_t right;
@@ -73,7 +75,6 @@ struct motorSpeeds {
 // ---- Function declarations ----
 motorSpeeds command_motors(float left, float right);
 void updateCRSF();
-void trim();
 void paint_screen(float angle);
 void load_vid(const SabreVid& video);
 void load_frame();
@@ -81,6 +82,6 @@ void flash();
 void flashing();
 void rainbow_line();
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics);
-float wrap360(float angle);
-float angleDistance(float a, float b);
 void passthrough();
+// float wrap360(float angle);
+// float angleDistance(float a, float b);

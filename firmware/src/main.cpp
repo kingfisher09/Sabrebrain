@@ -1,5 +1,7 @@
 // Software for melty brain robot written by Owen Fisher 2024-25
 #include "sabre_globals.h"
+#include "sabre_storage.h"
+#include "sabre_calibration_control.h"
 
 // images here:
 #include "image_taunt.h"
@@ -32,12 +34,14 @@ int E_stop_time = 100;          // ms allowed between ELRS signals before shutti
 int watchdog_time = 1000;       // ms after E_stop before resetting MCU
 bool watchdog_enabled = false;  // bool to record watchdog status. Watchdog will be enabled when transmitter first sends data, MCU will restart 1s after estop if no more signals are received
 
+SabreCalibration calibration;
+bool calibration_loaded = false;
+
 // movement commands
 float slip = 0;
 float trans = 0;
 float head = 0;
 float spin = 0;
-float correct = 1;
 bool headMode = false;  // remove this ASAP
 int image_mode;
 bool emote;
@@ -48,8 +52,9 @@ float angle = 0;                    // current robot angle
 unsigned long last_angle_time = 0;  // program time when last angle was calculated
 float zrotspd = 0;                  // measured speed
 float zrot = 0;                     // measured speed with heading control injected
-int16_t xoff = 0;
-int16_t yoff = 0;
+
+int16_t xoff = 10;  // THESE NEED TO BE REMOVED AND PROPER ZEROING ADDED
+int16_t yoff = 10;  // THESE NEED TO BE REMOVED
 int16_t zoff = 0;
 motorSpeeds motor_speeds;
 
@@ -139,9 +144,20 @@ void setup1() {
     }
   }
 
+  // Calibration stuff
+  while (!storage_setup()) {
+    Serial.println("FATFS begin failed, trying again");
+    delay(100);
+  }
+  calibration_loaded = load_calibration(calibration);
+
+  if (!calibration_loaded) {
+    Serial.println("Calibration load failed");
+  } else {
+    Serial.println("Calibration loaded");
+  }
+
   Serial.println("Thread 1 started");
-  xoff = 10;
-  yoff = 10;
 
   load_vid(bouncing_pumpkin);
 }
@@ -158,7 +174,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   float left_sig, right_sig;
 
   // robot control modes
-  if (spin > 0) {  // spinning mode
+  if (spin > 0 && calibration_loaded) {  // spinning mode
     float cosresult = cos(radians(angle));
     float sinresult = sin(radians(angle));
     float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
@@ -191,6 +207,12 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   static int loopcount = 0;  // # timing
 
   updateCRSF();  // update control
+  handle_calibration_control(
+      save_button,
+      spin,
+      slip,
+      head);
+
   if (speed_source == SensorType::Accelerometer) {
     if (xl.newXData()) {
       int16_t x, y, z;
@@ -204,18 +226,17 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
       float max_g = max(max(fabs(xg), fabs(yg)), fabs(zg));
       check_g_range(max_g);
 
-      float measure_accel =
-          9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
+      float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
 
       // FILTER ACCEL
       float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
       prev_filt_val = filtered_accel;
 
-      zrotspd = degrees(sqrt(filtered_accel / (correct * accel_rad)));  // deg/s
+      zrotspd = degrees(sqrt(filtered_accel / (accel_rad)));  // deg/s
     }
   } else if (speed_source == SensorType::ERPM) {
     float average_ERPM = (motor_speeds.left + motor_speeds.right) / 2;  // this will need to change when I allow for single motors
-    zrotspd = average_ERPM / (base_ERPM_cal * correct);
+    zrotspd = average_ERPM / (base_ERPM_cal);
   }
 
   // Telemetry stuff
@@ -229,11 +250,11 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     // Telemetry depends on speed measurement mode
     float telem_calib = 0;
     if (speed_source == SensorType::Accelerometer) {
-      telem_calib = accel_rad * 100 * correct;
+      telem_calib = accel_rad * 100;
     } else if (speed_source == SensorType::ERPM) {
-      telem_calib = base_ERPM_cal * correct;
+      telem_calib = base_ERPM_cal;
     }
-    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, telem_calib * correct, 0);
+    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, telem_calib, 0);
   }
 
   int sel;

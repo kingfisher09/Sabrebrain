@@ -5,11 +5,13 @@
 
 #define SABRE_CALIBRATION_VERSION 1
 
-constexpr uint8_t ACCEL_CAL_POINT_COUNT = 4;
+constexpr uint8_t MAX_ACCEL_TRIM_POINTS = 5;
 
-struct AccelCalPoint {
+#pragma pack(push, 1)
+
+struct AccelTrimPoint {
   float measured_accel;        // g
-  float cal_spin_speed_deg_s;  // deg/s
+  float trim_spin_speed_deg_s; // correction relative to base calibration
 };
 
 struct SabreCalibration {
@@ -17,10 +19,15 @@ struct SabreCalibration {
   uint16_t version = SABRE_CALIBRATION_VERSION;
   uint16_t crc = 0;
 
+  // Main accelerometer calibration
+  float base_calibration = 0.0f;
+
   // Graphics/movement phase alignment
   float heading_offset_deg = 0.0f;
 
-  // Accel calibration lookup table
-  AccelCalPoint accel_cal_points[ACCEL_CAL_POINT_COUNT] = {};
+  // Valid trim points are always stored in order of increasing acceleration
+  uint8_t accel_trim_point_count = 0;
+  AccelTrimPoint accel_trim_points[MAX_ACCEL_TRIM_POINTS] = {};
 };
+
 #pragma pack(pop)

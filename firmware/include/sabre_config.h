@@ -26,7 +26,6 @@ constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
 // Settings
 constexpr int deadzone = 30;              // #advancedusersetting for transmitter sticks
 constexpr int max_head = 360;             // #advancedusersetting max heading change in deg/s
-constexpr float correct_max = 0.1;        // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 constexpr int rainbow_delay = 40;         // #usersetting
 constexpr int flash_delay = 10;           // #usersetting
 constexpr int ESC_start_delay = 3000;     // #advancedusersetting
@@ -60,6 +59,5 @@ constexpr int TRANS_CH = 2;
 constexpr int SPIN_CH = 3;
 constexpr int HEAD_CH = 4;
 constexpr int INVERT_CH = 5;
-constexpr int CORRECT_CH = 6;  // used to correct accel radius
 constexpr int IMAGE_CH = 7;
 constexpr int EMOTE_CH = 8;  // used to trigger emote message
