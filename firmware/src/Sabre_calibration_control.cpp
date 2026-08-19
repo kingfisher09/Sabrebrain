@@ -1,6 +1,7 @@
-#pragma once
 #include "sabre_calibration_control.h"
-#include <Arduino.h>
+#include "sabre_globals.h"
+#include "sabre_storage.h"
+#include "sabrescreen.h"
 
 static bool calibration_mode = false;  // this is private, only exposed by the getter function
 
@@ -8,15 +9,12 @@ static bool previous_save_button = false;
 static unsigned long save_button_press_start = 0;
 
 static void commit_calibration();
-static void update_trim(float head);
+static void update_trim();
+static void adjust_calibration();
 
-// Temporary working values while calibrating
-static float working_base_calibration = 0.0f;
-static float working_heading_offset_deg = 0.0f;
-
-void handle_calibration_control(bool save_button, float spin, float slip, float head) {
-  bool just_pressed = save_button && !previous_save_button;
-  bool just_released = !save_button && previous_save_button;
+void handle_calibration_control() {
+  bool just_pressed = calib_button && !previous_save_button;
+  bool just_released = !calib_button && previous_save_button;
 
   if (just_pressed) {
     save_button_press_start = millis();
@@ -32,7 +30,7 @@ void handle_calibration_control(bool save_button, float spin, float slip, float 
       }
 
       if (spin > 0) {
-        update_trim(head);
+        update_trim();
       }
     } else {
       if (spin == 0) {
@@ -46,9 +44,47 @@ void handle_calibration_control(bool save_button, float spin, float slip, float 
   }
 
   if (calibration_mode) {
-    // adjust values according to slip and head
+    adjust_calibration();
   }
-  previous_save_button = save_button;
+
+  previous_save_button = calib_button;
+}
+
+static void adjust_calibration() {
+  static unsigned long last_update_ms = millis();
+
+  unsigned long now = millis();
+  float dt = (now - last_update_ms) / 1000.0f;
+  last_update_ms = now;
+
+  global_calibration.accel_radius_m += slip * RADIUS_ADJUST_RATE_M_S * dt;
+  global_calibration.heading_offset_deg += head * HEADING_ADJUST_RATE_DEG_S * dt;
+
+  global_calibration.accel_radius_m = constrain(global_calibration.accel_radius_m, 0.005f, 0.300f);
+
+  global_calibration.heading_offset_deg = constrain(global_calibration.heading_offset_deg, -180.0f, 180.0f);
+}
+
+
+static void commit_calibration() {
+  global_calibration.accel_trim_point_count = 0;
+
+  for (uint8_t i = 0; i < MAX_ACCEL_TRIM_POINTS; i++) {
+    global_calibration.accel_trim_points[i] = {};
+  }
+
+  if (save_calibration(global_calibration)) {
+    calibration_loaded = true;
+    Serial.println("Calibration saved");
+    flash_screen(CRGB::White);
+  } else {
+    Serial.println("Calibration save failed");
+    flash_screen(CRGB::Red);
+  }
+}
+
+void update_trim() {
+  return;
 }
 
 bool calibration_mode_active() {

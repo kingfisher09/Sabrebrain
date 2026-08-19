@@ -40,7 +40,6 @@ enum class SensorType  {
 };
 
 constexpr SensorType speed_source = SensorType::ERPM;  // #usersetting
-constexpr float accel_rad = 84.0 / 1000.0;  // #usersetting - input in mm, outputs m. Will be replaced by new calibration system. 
 constexpr float base_ERPM_cal = 5;
 constexpr bool flip_rot_direction = true;   // #usersetting - false for rotating with compass, true for against
 
@@ -59,5 +58,6 @@ constexpr int TRANS_CH = 2;
 constexpr int SPIN_CH = 3;
 constexpr int HEAD_CH = 4;
 constexpr int INVERT_CH = 5;
+constexpr int CALIB_CH = 6;
 constexpr int IMAGE_CH = 7;
 constexpr int EMOTE_CH = 8;  // used to trigger emote message

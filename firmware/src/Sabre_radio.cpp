@@ -2,7 +2,7 @@
 
 static float powerCurve(float x);
 static float servoTofloat(float servoSignal, int stickmode);
-bool save_button;
+bool calib_button;
 
 void updateCRSF() {
   // transmitter inputs
@@ -12,6 +12,7 @@ void updateCRSF() {
   trans = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
   spin = servoTofloat(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
   head = servoTofloat(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
+  calib_button = crsf.rcToUs(crsf.getChannel(CALIB_CH)) > 1500;
   image_mode = crsf.rcToUs(crsf.getChannel(IMAGE_CH));
   emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
   if (crsf.rcToUs(crsf.getChannel(INVERT_CH)) > 1500) {

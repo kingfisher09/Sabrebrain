@@ -10,7 +10,7 @@ constexpr uint8_t MAX_ACCEL_TRIM_POINTS = 5;
 #pragma pack(push, 1)
 
 struct AccelTrimPoint {
-  float measured_accel;        // g
+  float measured_accel;        // m/s²
   float trim_spin_speed_deg_s; // correction relative to base calibration
 };
 
@@ -20,7 +20,7 @@ struct SabreCalibration {
   uint16_t crc = 0;
 
   // Main accelerometer calibration
-  float base_calibration = 0.0f;
+  float accel_radius_m = 0.084f;
 
   // Graphics/movement phase alignment
   float heading_offset_deg = 0.0f;

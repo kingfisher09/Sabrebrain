@@ -1,4 +1,13 @@
-#include "sabre_globals.h" 
+#include "sabrescreen.h"
+
+enum class ScreenMode {
+  Video,
+  Still,
+  Flash
+};
+
+static ScreenMode screen_mode = ScreenMode::Video;
+static ScreenMode mode_before_flash = ScreenMode::Video;
 
 // Sabrescreen stuff
 
@@ -10,8 +19,8 @@ int bow_pos = 0;  // for keeping track of rainbow pixel
 using Row = CRGB[NUM_LEDS];
 
 // Create two full frames worth of LED data in memory - all black
-Row bufferA[NUM_ANGLES] = { 0 };
-Row bufferB[NUM_ANGLES] = { 0 };
+Row bufferA[NUM_ANGLES] = {0};
+Row bufferB[NUM_ANGLES] = {0};
 
 // The * means we are creating pointers that point to addresses in memory rather than copying the contents. Later on this allows fast switching
 Row* current_frame = bufferA;
@@ -24,16 +33,78 @@ int frame_num;
 int num_frames;
 unsigned long frame_time;
 
+CRGB leds[NUM_LEDS];                        // array to hold LED colours
+constexpr int hue_change = 255 / NUM_LEDS;  // integer division is fine here, round() not needed
 
-CRGB leds[NUM_LEDS];  // array to hold LED colours
-bool update_image = false;
-constexpr int hue_change = 255 / NUM_LEDS; // integer division is fine here, round() not needed
+// Flash state
+static CRGB flash_colour = CRGB::White;
+static int flash_pos = 0;
+static unsigned long lastFlashUpdate = 0;
 
+// Private functions
+static void paint_screen(float angle_in);
+static void rainbow_line(bool calibration_mode);
+static void load_frame();
+static void update_flash();
 
-void paint_screen(float angle_in) {  // called by loop 0
-  if (flash_now) { return; }         // don't annimate while flashhing
+void screen_setup() {
+  // Builtin LED first
+  pinMode(LED_POWER_PIN, OUTPUT);  // Turn on LED power
+  digitalWrite(LED_POWER_PIN, HIGH);
 
-  if (flip_rot_direction) { angle_in = 360 - angle_in; }
+  FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, NUM_LEDS);  // connect to LED strip
+  FastLED.clear();                                                   // ensure all LEDs start off
+  FastLED.show();
+}
+
+void update_screen(float angle, bool spinning, bool calibration_mode) {
+  if (screen_mode == ScreenMode::Flash) {
+    update_flash();
+    return;
+  }
+
+  if (!spinning) {
+    rainbow_line(calibration_mode);
+    return;
+  }
+
+  if (screen_mode == ScreenMode::Video) {
+    load_frame();
+  }
+
+  paint_screen(angle);
+}
+
+void play_video(const SabreVid& video) {  // ampersand in arguments makes it a reference rather than copying the video
+  current_vid = &video;
+  frame_duration = video.frameDurationMs;
+  frame_num = -1;
+  frame_time = millis();
+  num_frames = video.numFrames;
+
+  screen_mode = ScreenMode::Video;
+}
+
+void show_still(const CRGB image[NUM_ANGLES][NUM_LEDS]) {
+  memcpy(current_frame, image, sizeof(bufferA));
+  screen_mode = ScreenMode::Still;
+}
+
+void flash_screen(CRGB colour) {
+  if (screen_mode != ScreenMode::Flash) {
+    mode_before_flash = screen_mode;
+  }
+
+  flash_colour = colour;
+  flash_pos = 0;
+  lastFlashUpdate = millis();
+  screen_mode = ScreenMode::Flash;
+}
+
+static void paint_screen(float angle_in) {  // called by loop 0
+  if (flip_rot_direction) {
+    angle_in = 360 - angle_in;
+  }
 
   static int last_line = 0;
   int current_line = fmod(floor((angle_in + half_slice) / slice_size), NUM_ANGLES);  // mod wraps the slices back to 0, floor with the half slice keeps things centred around 0
@@ -46,40 +117,38 @@ void paint_screen(float angle_in) {  // called by loop 0
   bow_pos = 0;  // means rainbow will always start at centre
 }
 
-void rainbow_line() {         // called by loop 0 when not spinning
-  if (flash_now) { return; }  // don't annimate while flashhing
-
-  static unsigned long lastRainbowUpdate = 0;  // variable to time rainbow
+static void rainbow_line(bool calibration_mode) {  // called by loop 0 when not spinning
+  static unsigned long lastRainbowUpdate = 0;
   static int dir = 1;
 
   unsigned long now = millis();
 
   if (now - lastRainbowUpdate >= rainbow_delay) {
-    leds[bow_pos] = CHSV(bow_pos * hue_change, 255, 255);
+    if (calibration_mode) {
+      leds[bow_pos] = CRGB::Green;
+    } else {
+      leds[bow_pos] = CHSV(bow_pos * hue_change, 255, 255);
+    }
+
     blur1d(leds, NUM_LEDS, 172);
     fadeToBlackBy(leds, NUM_LEDS, 16);
     FastLED.show();
-    bow_pos = (bow_pos + dir);
+
+    bow_pos += dir;
 
     if (bow_pos > NUM_LEDS - 1) {
       dir = -1;
     }
+
     if (bow_pos < 1) {
       dir = 1;
     }
+
     lastRainbowUpdate = now;
   }
 }
 
-void load_vid(const SabreVid& video) {  // ampersand in arguments makes it a reference rather than copying the video
-  current_vid = &video;
-  frame_duration = video.frameDurationMs;
-  frame_num = -1;
-  frame_time = millis();
-  num_frames = video.numFrames;
-}
-
-void load_frame() {
+static void load_frame() {
   unsigned long nowish = millis();
   if (nowish - frame_time >= frame_duration) {
     frame_num += 1;
@@ -128,25 +197,17 @@ void load_frame() {
   }
 }
 
-void flashing() {
-  static unsigned long lastFlashUpdate = 0;  // variable to time rainbow
-  static int flash_pos = 0;
-
+static void update_flash() {
   if (millis() - lastFlashUpdate >= flash_delay) {
-    leds[flash_pos] = CRGB::White;
+    leds[flash_pos] = flash_colour;
     fadeToBlackBy(leds, NUM_LEDS, 85);
     FastLED.show();
     flash_pos += 1;
     lastFlashUpdate = millis();
   }
+
   if (flash_pos > NUM_LEDS - 1) {
     flash_pos = 0;
-    flash_now = false;
+    screen_mode = mode_before_flash;
   }
-}
-
-void flash() {                // thunder
-  if (flash_now) { return; }  // don't start a new flash yet
-  flash_now = true;
-  FastLED.clear();
 }

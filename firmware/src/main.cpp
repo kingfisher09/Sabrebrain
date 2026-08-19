@@ -2,6 +2,7 @@
 #include "sabre_globals.h"
 #include "sabre_storage.h"
 #include "sabre_calibration_control.h"
+#include "sabrescreen.h"
 
 // images here:
 #include "image_taunt.h"
@@ -10,7 +11,7 @@
 #include "bouncing_pumpkin.h"
 #include "sabremation.h"
 
-int sel_video = 0;  // only used in main so no need to move
+int sel_video = -1;  // only used in main so no need to move
 
 LIS331 xl;  // accelerometer thing
 int g_range = 100;
@@ -21,9 +22,6 @@ CRSFforArduino crsf = CRSFforArduino(&Serial1);
 /* This needs to be up here, to prevent compiler warnings. */
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 
-// End Sabrescreen stuff
-
-bool flash_now = false;  // whether currently doing a flash
 // motors
 BidirDShotX1* motor_Right;
 BidirDShotX1* motor_Left;
@@ -34,7 +32,7 @@ int E_stop_time = 100;          // ms allowed between ELRS signals before shutti
 int watchdog_time = 1000;       // ms after E_stop before resetting MCU
 bool watchdog_enabled = false;  // bool to record watchdog status. Watchdog will be enabled when transmitter first sends data, MCU will restart 1s after estop if no more signals are received
 
-SabreCalibration calibration;
+SabreCalibration global_calibration;
 bool calibration_loaded = false;
 
 // movement commands
@@ -64,6 +62,44 @@ float a0 = 1 - x;
 float b1 = x;
 float prev_filt_val = 0;
 
+enum class DisplaySlot {
+  None,
+  Low,
+  Mid,
+  High,
+  Emote,
+  Calibration
+};
+
+DisplaySlot active_display_slot = DisplaySlot::None;
+
+
+// This is where displays are selected
+static void select_display(DisplaySlot slot) {
+  switch (slot) {
+    case DisplaySlot::Low:
+      play_video(sabremation);
+      break;
+
+    case DisplaySlot::Mid:
+      show_still(image_taunt);
+      break;
+
+    case DisplaySlot::High:
+      play_video(bouncing_pumpkin);
+      break;
+
+    case DisplaySlot::Emote:
+      show_still(image_taunt);
+      break;
+
+    case DisplaySlot::Calibration:
+      show_still(image_taunt);
+      // show_still(calibration_image);
+      break;
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   // Passthrough mode, keep this at the top of setup!
@@ -84,14 +120,7 @@ void setup() {
   /* Set your link statistics callback. */
   crsf.setLinkStatisticsCallback(onLinkStatisticsUpdate);
 
-  // set up LEDs
-  // Builtin LED first
-  pinMode(LED_POWER_PIN, OUTPUT);  // Turn on LED power
-  digitalWrite(LED_POWER_PIN, HIGH);
-
-  FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, NUM_LEDS);  // connect to LED strip
-  FastLED.clear();                                                   // ensure all LEDs start off
-  FastLED.show();
+  screen_setup();
 
   delay(500);  // experimental delay to allow time for ESC boot before we start sending packets
 
@@ -149,35 +178,39 @@ void setup1() {
     Serial.println("FATFS begin failed, trying again");
     delay(100);
   }
-  calibration_loaded = load_calibration(calibration);
+  calibration_loaded = load_calibration(global_calibration);
 
   if (!calibration_loaded) {
     Serial.println("Calibration load failed");
+    global_calibration = SabreCalibration{};
   } else {
     Serial.println("Calibration loaded");
   }
 
   Serial.println("Thread 1 started");
-
-  load_vid(bouncing_pumpkin);
 }
 
 void loop() {                    // Loop 0 handles motor commands, angle calc and updating pixels
   unsigned long now = micros();  // # timing
   static int loopcount = 0;      // # timing
 
+  float active_slip = calibration_mode_active() ? 0.0f : slip;
+  float active_head = calibration_mode_active() ? 0.0f : head;
+
   // angle calc
-  zrot = zrotspd - (head * HEAD_CONTROL_SCALE) - head_trim;                     // add in head for changing angle
+  zrot = zrotspd - (active_head * HEAD_CONTROL_SCALE) - head_trim;              // add in head for changing angle
   angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360° negative per loop
   last_angle_time = micros();
 
   float left_sig, right_sig;
+  bool spinning = spin > 0;
 
   // robot control modes
-  if (spin > 0 && calibration_loaded) {  // spinning mode
+  if (spinning) {  // spinning mode
+
     float cosresult = cos(radians(angle));
     float sinresult = sin(radians(angle));
-    float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * slip * sinresult);  // calculate motor delta
+    float delta = (TRANS_SIGN * trans * cosresult) + (SLIP_SIGN * active_slip * sinresult);  // calculate motor delta
 
     // prevent over translating which flips motor direction
     float limit = spin * MAX_DELTA;
@@ -185,11 +218,8 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
 
     left_sig = spin + delta;
     right_sig = -spin + delta;
-    paint_screen(angle);  // update screen
 
   } else {  // normal robot mode
-
-    rainbow_line();  // draw rainbow
 
     // normal driving with minimum motor speed
     left_sig = slip + trans;
@@ -198,6 +228,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
+  update_screen(angle, spinning, calibration_mode_active());
   motor_speeds = command_motors(left_sig * invert, right_sig * invert);
 }
 
@@ -207,11 +238,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   static int loopcount = 0;  // # timing
 
   updateCRSF();  // update control
-  handle_calibration_control(
-      save_button,
-      spin,
-      slip,
-      head);
+  handle_calibration_control();
 
   if (speed_source == SensorType::Accelerometer) {
     if (xl.newXData()) {
@@ -232,7 +259,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
       float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
       prev_filt_val = filtered_accel;
 
-      zrotspd = degrees(sqrt(filtered_accel / (accel_rad)));  // deg/s
+      zrotspd = degrees(sqrt(filtered_accel / (global_calibration.accel_radius_m)));  // deg/s
     }
   } else if (speed_source == SensorType::ERPM) {
     float average_ERPM = (motor_speeds.left + motor_speeds.right) / 2;  // this will need to change when I allow for single motors
@@ -250,46 +277,34 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     // Telemetry depends on speed measurement mode
     float telem_calib = 0;
     if (speed_source == SensorType::Accelerometer) {
-      telem_calib = accel_rad * 100;
+      telem_calib = global_calibration.accel_radius_m * 100;
     } else if (speed_source == SensorType::ERPM) {
       telem_calib = base_ERPM_cal;
     }
     crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, telem_calib, 0);
   }
 
-  int sel;
-  if (image_mode < 1250) {
-    sel = 0;
+  DisplaySlot current_display;
+
+  if (calibration_mode_active()) {
+    current_display = DisplaySlot::Calibration;
+
+  } else if (emote) {
+    current_display = DisplaySlot::Emote;
+
+  } else if (image_mode < 1250) {
+    current_display = DisplaySlot::Low;
+
   } else if (image_mode < 1750) {
-    sel = 1;
+    current_display = DisplaySlot::Mid;
+
   } else {
-    sel = 2;
+    current_display = DisplaySlot::High;
   }
 
-  if (sel != sel_video) {
-    if (sel == 0) {
-      load_vid(sabremation);
-    }
-    if (sel == 1) {
-      load_vid(bouncing_pumpkin);
-    }
-    if (sel == 2) {
-      load_vid(sabremation);
-    }
-    sel_video = sel;
-  }
-
-  if (!emote) {
-    // play annimation
-    load_frame();
-  } else {
-    memcpy(current_frame, image_taunt, sizeof(image_taunt));
-    frame_num = -1;  // I don't like this, would be nicer to have a function to start playing vid
-  }
-
-  // flash annimation
-  if (flash_now) {
-    flashing();
+  if (current_display != active_display_slot) {
+    select_display(current_display);
+    active_display_slot = current_display;
   }
 }
 
