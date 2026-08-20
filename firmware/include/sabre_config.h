@@ -6,7 +6,7 @@
 constexpr bool passthrough_mode = false;
 
 // Movement settings
-constexpr int RIGHT_MOTOR_DIRECTION = 1;        // #usersetting
+constexpr int RIGHT_MOTOR_DIRECTION = 1;        // #usersetting _ 1 for Sabrtooth, -1 for Dreadnough
 constexpr int LEFT_MOTOR_DIRECTION = -1;        // #usersetting
 constexpr float min_drive = 0.03;               // #advancedusersetting
 constexpr float HEAD_CONTROL_SCALE = 330;      // #advancedusersetting
@@ -26,21 +26,31 @@ constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
 // Settings
 constexpr int deadzone = 30;              // #advancedusersetting for transmitter sticks
 constexpr int max_head = 360;             // #advancedusersetting max heading change in deg/s
-constexpr float correct_max = 0.2;        // #usersetting ± ratio for radial correct, 0.5 would mean a range from 0.5 to 1.5
 constexpr int rainbow_delay = 40;         // #usersetting
-constexpr int flash_delay = 10;           // #usersetting
-constexpr int ESC_start_delay = 3000;     // #advancedusersetting
-constexpr int approx_accel_rad = 55;      // #usersetting, not used yet will be used for first pass when calibrating
+constexpr int flash_delay = 20;           // #usersetting
+constexpr int ESC_start_delay = 2000;     // #advancedusersetting
+constexpr int approx_accel_rad = 84;      // #usersetting
 constexpr int max_dshot_send_freq = 500;  // Hz, likely not a user setting
 constexpr int dshot_delay = 1000000 / max_dshot_send_freq;
 
+// ---- Calibration ----
+constexpr float RADIUS_ADJUST_RATE_M_S = 0.008f;
+constexpr float HEADING_ADJUST_RATE_DEG_S = 360.0f;
+constexpr float TRIM_POINT_REPLACE_RANGE = 1.0f;
+
 // Robot stuff
-constexpr float accel_rad = 84.0 / 1000.0;  // #usersetting - input in mm, outputs m. Will be replaced by new calibration system
+enum class SensorType  {
+    Accelerometer,
+    ERPM
+};
+
+constexpr SensorType speed_source = SensorType::Accelerometer;  // #usersetting
+constexpr float base_ERPM_cal = 5;
 constexpr bool flip_rot_direction = true;   // #usersetting - false for rotating with compass, true for against
 
 // Pins
 constexpr int MOTOR_RIGHT_PIN = 4;
-constexpr int MOTOR_LEFT_PIN = 3;
+constexpr int MOTOR_LEFT_PIN = 3;  // Needs to be 2 for dreadnought (as of 2026-04-19) and 3 for sabretooth
 constexpr int LED_POWER_PIN = 11;  // builtin LED power control pin
 constexpr int LED_PIN = 12;        // data pin for NeoPixel
 constexpr int headPin = 27;        // LED heading data pin
@@ -53,6 +63,6 @@ constexpr int TRANS_CH = 2;
 constexpr int SPIN_CH = 3;
 constexpr int HEAD_CH = 4;
 constexpr int INVERT_CH = 5;
-constexpr int CORRECT_CH = 6;  // used to correct accel radius
+constexpr int CALIB_CH = 6;
 constexpr int IMAGE_CH = 7;
 constexpr int EMOTE_CH = 8;  // used to trigger emote message

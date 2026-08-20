@@ -7,6 +7,7 @@
 void passthrough() {
     uint8_t pins[] = {MOTOR_LEFT_PIN, MOTOR_RIGHT_PIN};
     beginPassthrough(pins, 2);
+    Serial.println("Starting passthrough on pins " + String(pins[0]) + " & " + String(pins[1]));
     while (true) {
         processPassthrough();
     }
