@@ -9,10 +9,10 @@ final int VIDEO = 1;
 
 int mode = STILL;
 
-String image_name = "dreadnought_logo";
+String image_name = "sabre_cal";
 
 // Used in STILL mode
-String image_path = "G:\\My Drive\\Robot\\Featherweight\\Dreadnought\\Dreadnought logo.png";
+String image_path = "G:\\My Drive\\Robot\\Featherweight\\Dreadnought\\Sabre cal.png";
 
 // Used in VIDEO mode
 String video_path = "C:\\Users\\ofish\\Pictures\\Sabretooth\\Haloween\\Haloween no dog.mp4";
@@ -35,7 +35,7 @@ int numRadii = numLEDs + 1;  // Number of radial slices +1 because we calculate 
 int canvas_size = 500;
 int canv_centre = canvas_size / 2;
 
-String output_folder = "C:\\Git\\Sabrebrain\\Sabrebrain";
+String output_folder = "C:\\Git\\Sabrebrain\\firmware\\media";
 
 
 // ================================================================

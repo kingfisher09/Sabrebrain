@@ -5,13 +5,12 @@
 #include "sabrescreen.h"
 
 // images here:
-#include "image_taunt.h"
+#include "../media/image_taunt.h"
+#include "../media/sabre_cal.h"
+#include "../media/dreadnought_logo.h"
 
 // videos here:
-#include "bouncing_pumpkin.h"
-#include "sabremation.h"
-
-int sel_video = -1;  // only used in main so no need to move
+#include "../media/sabremation.h"
 
 LIS331 xl;  // accelerometer thing
 int g_range = 100;
@@ -19,7 +18,7 @@ void check_g_range(float reading);
 
 CRSFforArduino crsf = CRSFforArduino(&Serial1);
 
-/* This needs to be up here, to prevent compiler warnings. */
+// functions
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 
 // motors
@@ -50,6 +49,7 @@ float angle = 0;                    // current robot angle
 unsigned long last_angle_time = 0;  // program time when last angle was calculated
 float zrotspd = 0;                  // measured speed
 float zrot = 0;                     // measured speed with heading control injected
+float filtered_accel = 0;           // used for trimming
 
 int16_t xoff = 10;  // THESE NEED TO BE REMOVED AND PROPER ZEROING ADDED
 int16_t yoff = 10;  // THESE NEED TO BE REMOVED
@@ -73,20 +73,19 @@ enum class DisplaySlot {
 
 DisplaySlot active_display_slot = DisplaySlot::None;
 
-
 // This is where displays are selected
 static void select_display(DisplaySlot slot) {
   switch (slot) {
     case DisplaySlot::Low:
-      play_video(sabremation);
+      show_still(dreadnought_logo);
       break;
 
     case DisplaySlot::Mid:
-      show_still(image_taunt);
+      show_still(dreadnought_logo);
       break;
 
     case DisplaySlot::High:
-      play_video(bouncing_pumpkin);
+      play_video(sabremation);
       break;
 
     case DisplaySlot::Emote:
@@ -94,8 +93,7 @@ static void select_display(DisplaySlot slot) {
       break;
 
     case DisplaySlot::Calibration:
-      show_still(image_taunt);
-      // show_still(calibration_image);
+      show_still(sabre_cal);
       break;
   }
 }
@@ -194,6 +192,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   unsigned long now = micros();  // # timing
   static int loopcount = 0;      // # timing
 
+  // These active variables needed ask masks when calibrating
   float active_slip = calibration_mode_active() ? 0.0f : slip;
   float active_head = calibration_mode_active() ? 0.0f : head;
 
@@ -228,7 +227,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
-  update_screen(angle, spinning, calibration_mode_active());
+  update_screen(angle + global_calibration.heading_offset_deg, spinning, calibration_mode_active());
   motor_speeds = command_motors(left_sig * invert, right_sig * invert);
 }
 
@@ -256,11 +255,19 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
       float measure_accel = 9.81 * sqrt(pow(xg, 2) + pow(yg, 2) + pow(zg, 2));  // given in m/s^2
 
       // FILTER ACCEL
-      float filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
+      filtered_accel = (measure_accel * a0) + (prev_filt_val * b1);
       prev_filt_val = filtered_accel;
 
-      zrotspd = degrees(sqrt(filtered_accel / (global_calibration.accel_radius_m)));  // deg/s
+      float base_speed = degrees(sqrt(filtered_accel / global_calibration.accel_radius_m));
+
+      float trim = 0;
+      if (!calibration_mode_active()) {
+        trim = get_trim_for_accel(filtered_accel);
+      }
+
+      zrotspd = base_speed + trim;  // deg/s
     }
+
   } else if (speed_source == SensorType::ERPM) {
     float average_ERPM = (motor_speeds.left + motor_speeds.right) / 2;  // this will need to change when I allow for single motors
     zrotspd = average_ERPM / (base_ERPM_cal);
@@ -269,7 +276,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   // Telemetry stuff
   static unsigned long lastGpsUpdate = 0;
   if (now - lastGpsUpdate >= 500000) {
-    // Serial.println(zrot / 6);
+    Serial.println(global_calibration.heading_offset_deg);
     lastGpsUpdate = now;
 
     // Update the GPS telemetry data with the new values.
@@ -281,7 +288,7 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     } else if (speed_source == SensorType::ERPM) {
       telem_calib = base_ERPM_cal;
     }
-    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, telem_calib, 0);
+    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, telem_calib, global_calibration.accel_trim_point_count);
   }
 
   DisplaySlot current_display;
@@ -363,4 +370,41 @@ void check_g_range(float reading) {
     high_count = 0;
     low_count = 0;
   }
+}
+
+float get_trim_for_accel(float accel) {
+  uint8_t count = global_calibration.accel_trim_point_count;
+
+  if (count == 0) {
+    return 0.0f;
+  }
+
+  // Below the lowest point: use the lowest trim
+  if (accel <= global_calibration.accel_trim_points[0].measured_accel) {
+    return global_calibration.accel_trim_points[0].trim_spin_speed_deg_s;
+  }
+
+  // Above the highest point: use the highest trim
+  if (accel >= global_calibration.accel_trim_points[count - 1].measured_accel) {
+    return global_calibration.accel_trim_points[count - 1].trim_spin_speed_deg_s;
+  }
+
+  // Find the two points either side of the current acceleration
+  for (uint8_t i = 0; i < count - 1; i++) {
+    const AccelTrimPoint& lower = global_calibration.accel_trim_points[i];
+    const AccelTrimPoint& upper = global_calibration.accel_trim_points[i + 1];
+
+    if (accel >= lower.measured_accel &&
+        accel <= upper.measured_accel) {
+      float fraction =
+          (accel - lower.measured_accel) /
+          (upper.measured_accel - lower.measured_accel);
+
+      return lower.trim_spin_speed_deg_s +
+             fraction *
+                 (upper.trim_spin_speed_deg_s - lower.trim_spin_speed_deg_s);
+    }
+  }
+
+  return 0.0f;  // should never get here
 }

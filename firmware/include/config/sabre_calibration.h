@@ -2,10 +2,11 @@
 
 #include <stdint.h>
 #include "config/sabre_file_types.h"
+#include "sabre_config.h"
 
 #define SABRE_CALIBRATION_VERSION 1
 
-constexpr uint8_t MAX_ACCEL_TRIM_POINTS = 5;
+constexpr uint8_t MAX_ACCEL_TRIM_POINTS = 4;
 
 #pragma pack(push, 1)
 
@@ -20,7 +21,7 @@ struct SabreCalibration {
   uint16_t crc = 0;
 
   // Main accelerometer calibration
-  float accel_radius_m = 0.084f;
+  float accel_radius_m = approx_accel_rad / 1000.0f;
 
   // Graphics/movement phase alignment
   float heading_offset_deg = 0.0f;

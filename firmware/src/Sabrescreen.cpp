@@ -93,6 +93,7 @@ void show_still(const CRGB image[NUM_ANGLES][NUM_LEDS]) {
 void flash_screen(CRGB colour) {
   if (screen_mode != ScreenMode::Flash) {
     mode_before_flash = screen_mode;
+    FastLED.clear();
   }
 
   flash_colour = colour;
@@ -102,12 +103,18 @@ void flash_screen(CRGB colour) {
 }
 
 static void paint_screen(float angle_in) {  // called by loop 0
+
   if (flip_rot_direction) {
-    angle_in = 360 - angle_in;
+    angle_in = -angle_in;
   }
 
   static int last_line = 0;
+
   int current_line = fmod(floor((angle_in + half_slice) / slice_size), NUM_ANGLES);  // mod wraps the slices back to 0, floor with the half slice keeps things centred around 0
+
+  if (current_line < 0) {
+    current_line += NUM_ANGLES;
+  }
 
   last_line = current_line;
   FastLED.clear();
@@ -200,7 +207,8 @@ static void load_frame() {
 static void update_flash() {
   if (millis() - lastFlashUpdate >= flash_delay) {
     leds[flash_pos] = flash_colour;
-    fadeToBlackBy(leds, NUM_LEDS, 85);
+    blur1d(leds, NUM_LEDS, 172);
+    fadeToBlackBy(leds, NUM_LEDS, 30);
     FastLED.show();
     flash_pos += 1;
     lastFlashUpdate = millis();

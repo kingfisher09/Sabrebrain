@@ -27,11 +27,16 @@ constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
 constexpr int deadzone = 30;              // #advancedusersetting for transmitter sticks
 constexpr int max_head = 360;             // #advancedusersetting max heading change in deg/s
 constexpr int rainbow_delay = 40;         // #usersetting
-constexpr int flash_delay = 10;           // #usersetting
-constexpr int ESC_start_delay = 3000;     // #advancedusersetting
-constexpr int approx_accel_rad = 55;      // #usersetting, not used yet will be used for first pass when calibrating
+constexpr int flash_delay = 20;           // #usersetting
+constexpr int ESC_start_delay = 2000;     // #advancedusersetting
+constexpr int approx_accel_rad = 84;      // #usersetting
 constexpr int max_dshot_send_freq = 500;  // Hz, likely not a user setting
 constexpr int dshot_delay = 1000000 / max_dshot_send_freq;
+
+// ---- Calibration ----
+constexpr float RADIUS_ADJUST_RATE_M_S = 0.008f;
+constexpr float HEADING_ADJUST_RATE_DEG_S = 360.0f;
+constexpr float TRIM_POINT_REPLACE_RANGE = 1.0f;
 
 // Robot stuff
 enum class SensorType  {
@@ -39,7 +44,7 @@ enum class SensorType  {
     ERPM
 };
 
-constexpr SensorType speed_source = SensorType::ERPM;  // #usersetting
+constexpr SensorType speed_source = SensorType::Accelerometer;  // #usersetting
 constexpr float base_ERPM_cal = 5;
 constexpr bool flip_rot_direction = true;   // #usersetting - false for rotating with compass, true for against
 

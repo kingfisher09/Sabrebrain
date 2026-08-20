@@ -32,10 +32,6 @@ extern uint32_t erpm_right;
 extern const int MOTOR_RIGHT_PIN;
 extern const int MOTOR_LEFT_PIN;
 
-// ---- Calibration ----
-constexpr float RADIUS_ADJUST_RATE_M_S = 0.005f;
-constexpr float HEADING_ADJUST_RATE_DEG_S = 360.0f;
-
 // ---- RF channels (defined in main.cpp) ---- I
 extern CRSFforArduino crsf;
 
@@ -55,6 +51,7 @@ extern int image_mode;
 extern bool emote;
 extern float invert;
 extern bool calib_button;
+extern float filtered_accel;
 
 // ---- Structures ----
 extern SabreCalibration global_calibration;
@@ -69,5 +66,6 @@ motorSpeeds command_motors(float left, float right);
 void updateCRSF();
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics);
 void passthrough();
+float get_trim_for_accel(float accel);
 // float wrap360(float angle);
 // float angleDistance(float a, float b);
