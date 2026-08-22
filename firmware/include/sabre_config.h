@@ -6,8 +6,8 @@
 constexpr bool passthrough_mode = false;
 
 // Movement settings
-constexpr int RIGHT_MOTOR_DIRECTION = 1;        // #usersetting _ 1 for Sabrtooth, -1 for Dreadnough
-constexpr int LEFT_MOTOR_DIRECTION = -1;        // #usersetting
+constexpr int RIGHT_MOTOR_DIRECTION = -1;        // #usersetting (-1 dread, 1 sabre)
+constexpr int LEFT_MOTOR_DIRECTION = -1;        // #usersetting (-1 dread, 1 sabre)
 constexpr float min_drive = 0.03;               // #advancedusersetting
 constexpr float HEAD_CONTROL_SCALE = 330;      // #advancedusersetting
 constexpr int TRANS_SIGN = -1;                  // #advancedusersetting
@@ -27,7 +27,7 @@ constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
 constexpr int deadzone = 30;              // #advancedusersetting for transmitter sticks
 constexpr int max_head = 360;             // #advancedusersetting max heading change in deg/s
 constexpr int rainbow_delay = 40;         // #usersetting
-constexpr int flash_delay = 20;           // #usersetting
+constexpr int flash_delay = 12;           // #usersetting
 constexpr int ESC_start_delay = 2000;     // #advancedusersetting
 constexpr int approx_accel_rad = 84;      // #usersetting
 constexpr int max_dshot_send_freq = 500;  // Hz, likely not a user setting
@@ -49,8 +49,8 @@ constexpr float base_ERPM_cal = 5;
 constexpr bool flip_rot_direction = true;   // #usersetting - false for rotating with compass, true for against
 
 // Pins
-constexpr int MOTOR_RIGHT_PIN = 4;
-constexpr int MOTOR_LEFT_PIN = 3;  // Needs to be 2 for dreadnought (as of 2026-04-19) and 3 for sabretooth
+constexpr int MOTOR_RIGHT_PIN = 3; // (4 sabre, 3 dread)
+constexpr int MOTOR_LEFT_PIN = 4;  // (3 sabre, 4 dread)
 constexpr int LED_POWER_PIN = 11;  // builtin LED power control pin
 constexpr int LED_PIN = 12;        // data pin for NeoPixel
 constexpr int headPin = 27;        // LED heading data pin
@@ -66,3 +66,35 @@ constexpr int INVERT_CH = 5;
 constexpr int CALIB_CH = 6;
 constexpr int IMAGE_CH = 7;
 constexpr int EMOTE_CH = 8;  // used to trigger emote message
+
+
+// LED layout
+struct LedPosition {
+  float radius_mm;
+  float angle_deg;
+};
+
+constexpr LedPosition TOP_LED_POSITIONS[] = {
+  {0.0, 0.0},
+  {5.0, 0.0},
+  {10.0, 0.0},
+  {15.0, 0.0},
+  {20.0, 0.0},
+  {25.0, 0.0},
+  {28.0, 70},
+  {30.0, 75},
+};
+
+constexpr LedPosition BOTTOM_LED_POSITIONS[] = {
+  {0.0, 0.0},
+  {5.0, 0.0},
+  {10.0, 0.0},
+  {15.0, 0.0},
+  {20.0, 0.0},
+  {25.0, 0.0},
+  {28.0, 20},
+  {30.0, 22},
+};
+
+constexpr int TOP_NUM_LEDS = sizeof(TOP_LED_POSITIONS) / sizeof(TOP_LED_POSITIONS[0]);
+constexpr int BOTTOM_NUM_LEDS = sizeof(BOTTOM_LED_POSITIONS) / sizeof(BOTTOM_LED_POSITIONS[0]);

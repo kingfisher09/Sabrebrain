@@ -9,8 +9,6 @@ enum class ScreenMode {
 static ScreenMode screen_mode = ScreenMode::Video;
 static ScreenMode mode_before_flash = ScreenMode::Video;
 
-// Sabrescreen stuff
-
 const float slice_size = 360.0f / NUM_ANGLES;
 const float half_slice = slice_size / 2.0f;
 int bow_pos = 0;  // for keeping track of rainbow pixel
@@ -46,6 +44,29 @@ static void paint_screen(float angle_in);
 static void rainbow_line(bool calibration_mode);
 static void load_frame();
 static void update_flash();
+
+// LED MAPPING
+struct LedMapping {
+  uint8_t radial_index;
+  float angle_deg;
+};
+
+static LedMapping top_led_mapping[TOP_NUM_LEDS];
+static LedMapping bottom_led_mapping[BOTTOM_NUM_LEDS];
+
+static float get_max_radius(const LedPosition* positions, int num_leds) {
+
+  float max_radius = 0;
+
+  for (int i = 0; i < num_leds; i++) {
+
+    if (positions[i].radius_mm > max_radius) {
+      max_radius = positions[i].radius_mm;
+    }
+  }
+
+  return max_radius;
+}
 
 void screen_setup() {
   // Builtin LED first
@@ -208,7 +229,7 @@ static void update_flash() {
   if (millis() - lastFlashUpdate >= flash_delay) {
     leds[flash_pos] = flash_colour;
     blur1d(leds, NUM_LEDS, 172);
-    fadeToBlackBy(leds, NUM_LEDS, 30);
+    fadeToBlackBy(leds, NUM_LEDS, 20);
     FastLED.show();
     flash_pos += 1;
     lastFlashUpdate = millis();

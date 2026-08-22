@@ -14,6 +14,7 @@
 
 LIS331 xl;  // accelerometer thing
 int g_range = 100;
+constexpr uint8_t ACCEL_ADDRESS = 0x19;
 void check_g_range(float reading);
 
 CRSFforArduino crsf = CRSFforArduino(&Serial1);
@@ -155,7 +156,7 @@ void setup1() {
   Serial.println("Accel has power");
 
   // Set up accel
-  xl.setI2CAddr(0x19);  // This MUST be called BEFORE .begin() so begin() can communicate with the chip
+  xl.setI2CAddr(ACCEL_ADDRESS);  // This MUST be called BEFORE .begin() so begin() can communicate with the chip
   bool accel_active = false;
 
   while (!accel_active) {
@@ -315,6 +316,28 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
   }
 }
 
+static bool set_accel_range(LIS331::fs_range range) {
+
+  uint8_t reg = xl.readReg(CTRL_REG4);
+
+  reg &= ~0x30;          // Clear FS1 and FS0
+  reg |= (range << 4);   // Set requested range
+
+  // Write CTRL_REG4 directly over I2C
+  Wire.beginTransmission(ACCEL_ADDRESS);
+  Wire.write(CTRL_REG4);
+  Wire.write(reg);
+
+  if (Wire.endTransmission() != 0) {
+    return false;
+  }
+
+  // Read it back to make sure the sensor actually changed
+  uint8_t check = xl.readReg(CTRL_REG4);
+
+  return (check & 0x30) == (reg & 0x30);
+}
+
 void check_g_range(float reading) {
   // #AddLogging
   static int high_count = 0;
@@ -327,13 +350,15 @@ void check_g_range(float reading) {
     // increase range
     switch (g_range) {
       case 100:
-        g_range = 200;
-        xl.setFullScale(LIS331::MED_RANGE);
+        if (set_accel_range(LIS331::MED_RANGE)) {
+          g_range = 200;
+        }
         break;
 
       case 200:
-        g_range = 400;
-        xl.setFullScale(LIS331::HIGH_RANGE);
+        if (set_accel_range(LIS331::HIGH_RANGE)) {
+          g_range = 400;
+        }
         break;
 
       default:
@@ -350,13 +375,15 @@ void check_g_range(float reading) {
     // decrease range
     switch (g_range) {
       case 200:
-        g_range = 100;
-        xl.setFullScale(LIS331::LOW_RANGE);
+        if (set_accel_range(LIS331::LOW_RANGE)) {
+          g_range = 100;
+        }
         break;
 
       case 400:
-        g_range = 200;
-        xl.setFullScale(LIS331::MED_RANGE);
+        if (set_accel_range(LIS331::MED_RANGE)) {
+          g_range = 200;
+        }
         break;
 
       default:
