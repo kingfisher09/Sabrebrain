@@ -228,7 +228,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
-  update_screen(angle + global_calibration.heading_offset_deg, spinning, calibration_mode_active());
+  update_screen(angle + global_calibration.heading_offset_deg, spinning, calibration_mode_active(), invert == -1);
   motor_speeds = command_motors(left_sig * invert, right_sig * invert);
 }
 

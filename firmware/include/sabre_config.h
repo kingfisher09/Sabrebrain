@@ -20,8 +20,8 @@ constexpr float head_trim = 0;
 
 // Screen settings
 constexpr int NUM_ANGLES = 150;
-constexpr int NUM_LEDS = 23;  // #usersetting
-constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_LEDS * 2 + 7) / 8;
+constexpr int NUM_SOURCE_RINGS = 23;  // #usersetting
+constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_SOURCE_RINGS * 2 + 7) / 8;
 
 // Settings
 constexpr int deadzone = 30;              // #advancedusersetting for transmitter sticks
@@ -98,3 +98,6 @@ constexpr LedPosition BOTTOM_LED_POSITIONS[] = {
 
 constexpr int TOP_NUM_LEDS = sizeof(TOP_LED_POSITIONS) / sizeof(TOP_LED_POSITIONS[0]);
 constexpr int BOTTOM_NUM_LEDS = sizeof(BOTTOM_LED_POSITIONS) / sizeof(BOTTOM_LED_POSITIONS[0]);
+
+constexpr int MAX_PHYSICAL_LEDS =
+    (TOP_NUM_LEDS > BOTTOM_NUM_LEDS) ? TOP_NUM_LEDS : BOTTOM_NUM_LEDS;
