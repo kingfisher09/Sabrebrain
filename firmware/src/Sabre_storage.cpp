@@ -38,12 +38,13 @@ bool validate_calibration(const SabreCalibration& cal) {
 
   if (cal.heading_offset_deg < -360.0f || cal.heading_offset_deg > 360.0f) return false;
 
+  if (cal.accel_trim_point_count > MAX_ACCEL_TRIM_POINTS) return false;
+
   for (uint8_t i = 0; i < MAX_ACCEL_TRIM_POINTS; i++) {
     if (!isfinite(cal.accel_trim_points[i].measured_accel)) return false;
     if (!isfinite(cal.accel_trim_points[i].trim_spin_speed_deg_s)) return false;
 
     if (cal.accel_trim_points[i].measured_accel < 0.0f) return false;
-    if (cal.accel_trim_points[i].trim_spin_speed_deg_s < 0.0f) return false;
   }
 
   return true;
@@ -67,9 +68,8 @@ bool save_calibration(const SabreCalibration& cal) {
   }
 
   size_t bytes_written = file.write(
-    reinterpret_cast<const uint8_t*>(&cal_to_save),
-    sizeof(cal_to_save)
-  );
+      reinterpret_cast<const uint8_t*>(&cal_to_save),
+      sizeof(cal_to_save));
 
   file.close();
 
@@ -86,9 +86,8 @@ bool load_calibration(SabreCalibration& cal) {
   SabreCalibration loaded;
 
   size_t bytes_read = file.read(
-    reinterpret_cast<uint8_t*>(&loaded),
-    sizeof(loaded)
-  );
+      reinterpret_cast<uint8_t*>(&loaded),
+      sizeof(loaded));
 
   file.close();
 
