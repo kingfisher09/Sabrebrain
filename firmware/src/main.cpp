@@ -228,14 +228,14 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
     right_sig = (abs(right_sig) < min_drive) ? 0 : right_sig;
   }
 
-  update_screen(angle + global_calibration.heading_offset_deg, spinning, calibration_mode_active(), invert == -1);
+  update_screen(angle + global_calibration.heading_offset_deg, spinning, calibration_mode_active(), invert == 1);
   motor_speeds = command_motors(left_sig * invert, right_sig * invert);
 }
 
 void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading images
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
   unsigned long now = micros();
-  static int loopcount = 0;  // # timing
+  static int loopcount = 0;  // # tiúming
 
   updateCRSF();  // update control
   handle_calibration_control();

@@ -70,9 +70,13 @@ void screen_setup() {
   pinMode(LED_POWER_PIN, OUTPUT);  // Turn on LED power
   digitalWrite(LED_POWER_PIN, HIGH);
 
-  FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, MAX_PHYSICAL_LEDS);  // connect to LED strip
-  FastLED.clear();                                                           // ensure all LEDs start off
+  FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, 26);  // connect to LED strip
+  FastLED.clear();                                             // ensure all LEDs start off
   FastLED.show();
+
+  fill_solid(leds, MAX_PHYSICAL_LEDS, CRGB::White);
+  FastLED.show();
+  delay(3000);
 }
 
 void update_screen(float angle, bool spinning, bool calibration_mode, bool inverted) {
@@ -143,13 +147,11 @@ static void paint_screen(float angle_in, bool inverted) {  // called by loop 0
   FastLED.clear();
 
   for (int i = 0; i < num_leds; i++) {
-
     float led_angle = angle_in + positions[i].angle_deg;
 
     int current_line = fmod(
-      floor((led_angle + half_slice) / slice_size),
-      NUM_ANGLES
-    );
+        floor((led_angle + half_slice) / slice_size),
+        NUM_ANGLES);
 
     if (current_line < 0) {
       current_line += NUM_ANGLES;

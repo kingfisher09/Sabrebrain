@@ -7,7 +7,7 @@ constexpr bool passthrough_mode = false;
 
 // Movement settings
 constexpr int RIGHT_MOTOR_DIRECTION = -1;        // #usersetting (-1 dread, 1 sabre)
-constexpr int LEFT_MOTOR_DIRECTION = -1;        // #usersetting (-1 dread, 1 sabre)
+constexpr int LEFT_MOTOR_DIRECTION = 1;        // #usersetting (-1 dread, 1 sabre)
 constexpr float min_drive = 0.03;               // #advancedusersetting
 constexpr float HEAD_CONTROL_SCALE = 330;      // #advancedusersetting
 constexpr int TRANS_SIGN = -1;                  // #advancedusersetting
@@ -75,25 +75,47 @@ struct LedPosition {
 };
 
 constexpr LedPosition TOP_LED_POSITIONS[] = {
-  {0.0, 0.0},
-  {5.0, 0.0},
-  {10.0, 0.0},
-  {15.0, 0.0},
-  {20.0, 0.0},
-  {25.0, 0.0},
-  {28.0, 70},
-  {30.0, 75},
+  // 9 LED radial strip
+  {0, 0},
+  {7, 0},
+  {14, 0},
+  {21, 0},
+  {28, 0},
+  {35, 0},
+  {42, 0},
+  {49, 0},
+  {56, 0},
+
+  // 17 LED offset strip
+  {56.00, 143.00},
+  {60.64, 137.78},
+  {65.70, 133.33},
+  {71.11, 129.53},
+  {76.78, 126.29},
+  {82.67, 123.49},
+  {88.72, 121.08},
+  {94.91, 118.97},
+  {101.22, 117.13},
+  {107.62, 115.50},
+  {114.09, 114.06},
+  {120.63, 112.77},
+  {127.22, 111.62},
+  {133.86, 110.58},
+  {140.54, 109.64},
+  {147.26, 108.78},
+  {154.00, 108.00},
 };
 
 constexpr LedPosition BOTTOM_LED_POSITIONS[] = {
-  {0.0, 0.0},
-  {5.0, 0.0},
-  {10.0, 0.0},
-  {15.0, 0.0},
-  {20.0, 0.0},
-  {25.0, 0.0},
-  {28.0, 20},
-  {30.0, 22},
+  {0, 0},
+  {7, 0},
+  {14, 0},
+  {21, 0},
+  {28, 0},
+  {35, 0},
+  {42, 0},
+  {49, 0},
+  {56, 0},
 };
 
 constexpr int TOP_NUM_LEDS = sizeof(TOP_LED_POSITIONS) / sizeof(TOP_LED_POSITIONS[0]);
