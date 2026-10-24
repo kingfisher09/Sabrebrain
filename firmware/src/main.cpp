@@ -1,5 +1,6 @@
-// Software for melty brain robot written by Owen Fisher 2024-25
+// Software for melty brain robot written by Owen Fisher 2024-25-26
 #include "sabre_globals.h"
+#include "sabre_motor_control.h"
 #include "sabre_storage.h"
 #include "sabre_calibration_control.h"
 #include "sabrescreen.h"
@@ -22,15 +23,10 @@ CRSFforArduino crsf = CRSFforArduino(&Serial1);
 // functions
 void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
 
-// motors
-BidirDShotX1* motor_Right;
-BidirDShotX1* motor_Left;
-
 // safety stuff
 unsigned long stopflag_time = 0;
 int E_stop_time = 100;          // ms allowed between ELRS signals before shutting down motors
 int watchdog_time = 1000;       // ms after E_stop before resetting MCU
-bool watchdog_enabled = false;  // bool to record watchdog status. Watchdog will be enabled when transmitter first sends data, MCU will restart 1s after estop if no more signals are received
 
 SabreCalibration global_calibration;
 bool calibration_loaded = false;
@@ -123,20 +119,8 @@ void setup() {
 
   delay(500);  // experimental delay to allow time for ESC boot before we start sending packets
 
-  // initialise motors
-  motor_Right = new BidirDShotX1(MOTOR_RIGHT_PIN, 300);
-  motor_Left = new BidirDShotX1(MOTOR_LEFT_PIN, 300);
-  motor_Left->sendThrottle(0);
-  motor_Right->sendThrottle(0);
-
+  setup_motors(motor_config);
   Serial.println("Thread 0 started");
-  // send throttle 0 in loop till start delay has finished
-  unsigned long start = millis();
-  while (millis() - start < ESC_start_delay) {
-    motor_Left->sendThrottle(0);
-    motor_Right->sendThrottle(0);
-    delayMicroseconds(200);
-  }
 }
 
 void setup1() {
@@ -270,14 +254,15 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     }
 
   } else if (speed_source == SensorType::ERPM) {
-    float average_ERPM = (motor_speeds.left + motor_speeds.right) / 2;  // this will need to change when I allow for single motors
+    float average_ERPM = motor_config.count == MotorCount::Single
+                             ? motor_speeds.left
+                             : (motor_speeds.left + motor_speeds.right) / 2;
     zrotspd = average_ERPM / (base_ERPM_cal);
   }
 
   // Telemetry stuff
   static unsigned long lastGpsUpdate = 0;
   if (now - lastGpsUpdate >= 500000) {
-    Serial.println(global_calibration.heading_offset_deg);
     lastGpsUpdate = now;
 
     // Update the GPS telemetry data with the new values.

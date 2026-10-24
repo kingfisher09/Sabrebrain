@@ -1,4 +1,4 @@
-// This file will hold the code to load and apply user and defualt settings. More variables will move here soon
+// This file will hold the code to load and apply user and default settings. More variables will move here soon
 
 #pragma once
 
@@ -28,7 +28,6 @@ constexpr int deadzone = 30;              // #advancedusersetting for transmitte
 constexpr int max_head = 360;             // #advancedusersetting max heading change in deg/s
 constexpr int rainbow_delay = 40;         // #usersetting
 constexpr int flash_delay = 12;           // #usersetting
-constexpr int ESC_start_delay = 2000;     // #advancedusersetting
 constexpr int approx_accel_rad = 84;      // #usersetting
 constexpr int max_dshot_send_freq = 500;  // Hz, likely not a user setting
 constexpr int dshot_delay = 1000000 / max_dshot_send_freq;
@@ -56,6 +55,46 @@ constexpr int LED_PIN = 12;        // data pin for NeoPixel
 constexpr int headPin = 27;        // LED heading data pin
 constexpr int headClock = 28;      // LED clock pin
 constexpr int accel_pow = 26;      // pin to power accelerometer, allows it to be restarted easily
+
+// Motor output configuration.
+enum class MotorProtocol { DShot, CRSF, OneShot };
+enum class MotorCount { Single, Dual };
+
+struct CrsfMotorConfig {
+  int tx_pin = MOTOR_LEFT_PIN;  // One shared serial output for both ESC channels.
+  int left_channel = 1;  // Channel numbers are 1-based.
+  int right_channel = 2;  // Ignored in single-motor mode.
+  unsigned long baud_rate = 420000UL;
+  unsigned long update_interval_us = 1000UL;  // 1000 Hz.
+};
+
+struct OneShotMotorConfig {
+  float frequency_hz = 3500.0f;
+  float min_pulse_us = 125.0f;
+  float max_pulse_us = 250.0f;
+};
+
+struct MotorConfig {
+  MotorProtocol protocol;
+  MotorCount count;
+  int left_pin;  // DShot/OneShot only.
+  int right_pin;  // DShot/OneShot only; ignored in single-motor mode.
+  int left_direction;
+  int right_direction;
+  unsigned long startup_delay_ms;
+  CrsfMotorConfig crsf{};
+  OneShotMotorConfig oneshot{};
+};
+
+constexpr MotorConfig motor_config = {
+    MotorProtocol::DShot,
+    MotorCount::Dual,  // Single uses only the left motor and command.
+    MOTOR_LEFT_PIN,
+    MOTOR_RIGHT_PIN,
+    LEFT_MOTOR_DIRECTION,
+    RIGHT_MOTOR_DIRECTION,
+    1000UL,  // startup_delay_ms - #advancedusersetting
+};
 
 // RF stuff
 constexpr int SLIP_CH = 1;
