@@ -1,3 +1,4 @@
+// Displays still images, animations, and status flashes on LEDs synchronised to robot rotation.
 #include "sabrescreen.h"
 
 enum class ScreenMode {
@@ -9,15 +10,15 @@ enum class ScreenMode {
 static ScreenMode screen_mode = ScreenMode::Video;
 static ScreenMode mode_before_flash = ScreenMode::Video;
 
-const float slice_size = 360.0f / NUM_ANGLES;
+const float slice_size = 360.0f / Sabre_Config::NUM_ANGLES;
 const float half_slice = slice_size / 2.0f;
 int bow_pos = 0;  // for keeping track of rainbow pixel
 
-using Row = CRGB[NUM_SOURCE_RINGS];
+using Row = CRGB[Sabre_Config::NUM_SOURCE_RINGS];
 
 // Create two full frames worth of LED data in memory - all black
-Row bufferA[NUM_ANGLES] = {0};
-Row bufferB[NUM_ANGLES] = {0};
+Row bufferA[Sabre_Config::NUM_ANGLES] = {0};
+Row bufferB[Sabre_Config::NUM_ANGLES] = {0};
 
 // The * means we are creating pointers that point to addresses in memory rather than copying the contents. Later on this allows fast switching
 Row* current_frame = bufferA;
@@ -30,8 +31,10 @@ int frame_num;
 int num_frames;
 unsigned long frame_time;
 
-CRGB leds[MAX_PHYSICAL_LEDS];                        // array to hold LED colours
-constexpr int hue_change = 255 / MAX_PHYSICAL_LEDS;  // integer division is fine here, round() not needed
+static std::vector<CRGB> leds;
+static int active_led_count = 0;
+static int hue_change = 0;
+static bool screen_initialised = false;
 
 // Flash state
 static CRGB flash_colour = CRGB::White;
@@ -45,8 +48,8 @@ static void load_frame();
 static void update_flash();
 
 // LED MAPPING
-static uint8_t top_radial_mapping[TOP_NUM_LEDS];
-static uint8_t bottom_radial_mapping[BOTTOM_NUM_LEDS];
+static std::vector<uint8_t> top_radial_mapping;
+static std::vector<uint8_t> bottom_radial_mapping;
 
 static void create_radial_mapping(const LedPosition* positions, uint8_t* mapping, int num_leds) {
   float max_radius = 0;
@@ -58,28 +61,40 @@ static void create_radial_mapping(const LedPosition* positions, uint8_t* mapping
   }
 
   for (int i = 0; i < num_leds; i++) {
-    mapping[i] = static_cast<uint8_t>(round((positions[i].radius_mm / max_radius) * (NUM_SOURCE_RINGS - 1)));
+    mapping[i] = max_radius > 0
+        ? static_cast<uint8_t>(round((positions[i].radius_mm / max_radius) * (Sabre_Config::NUM_SOURCE_RINGS - 1)))
+        : 0;
   }
 }
 
 void screen_setup() {
-  create_radial_mapping(TOP_LED_POSITIONS, top_radial_mapping, TOP_NUM_LEDS);
-  create_radial_mapping(BOTTOM_LED_POSITIONS, bottom_radial_mapping, BOTTOM_NUM_LEDS);
+  // Buffers must remain at these sizes after FastLED keeps their data pointer.
+  const int top_count = static_cast<int>(global_config.TOP_LED_POSITIONS.size());
+  const int bottom_count = static_cast<int>(global_config.BOTTOM_LED_POSITIONS.size());
+  active_led_count = max(top_count, bottom_count);
+  // No LEDs is a valid configuration. Leave display updates disabled and
+  // skip FastLED registration, the hue division, and the startup light show.
+  if (active_led_count == 0) return;
+  leds.resize(active_led_count);
+  top_radial_mapping.resize(top_count);
+  bottom_radial_mapping.resize(bottom_count);
+  hue_change = 255 / active_led_count;
+  create_radial_mapping(global_config.TOP_LED_POSITIONS.data(), top_radial_mapping.data(), top_count);
+  create_radial_mapping(global_config.BOTTOM_LED_POSITIONS.data(), bottom_radial_mapping.data(), bottom_count);
 
   // Builtin LED first
-  pinMode(LED_POWER_PIN, OUTPUT);  // Turn on LED power
-  digitalWrite(LED_POWER_PIN, HIGH);
+  pinMode(global_config.LED_POWER_PIN, OUTPUT);  // Turn on LED power
+  digitalWrite(global_config.LED_POWER_PIN, HIGH);
 
-  FastLED.addLeds<APA102, headPin, headClock, BGR>(leds, 26);  // connect to LED strip
+  FastLED.addLeds<APA102, Sabre_Config::headPin, Sabre_Config::headClock, BGR>(leds.data(), active_led_count);  // connect to LED strip
   FastLED.clear();                                             // ensure all LEDs start off
   FastLED.show();
 
-  fill_solid(leds, MAX_PHYSICAL_LEDS, CRGB::White);
-  FastLED.show();
-  delay(3000);
+  screen_initialised = true;
 }
 
 void update_screen(float angle, bool spinning, bool calibration_mode, bool inverted) {
+  if (!screen_initialised) return;
   if (screen_mode == ScreenMode::Flash) {
     update_flash();
     return;
@@ -107,12 +122,13 @@ void play_video(const SabreVid& video) {  // ampersand in arguments makes it a r
   screen_mode = ScreenMode::Video;
 }
 
-void show_still(const CRGB image[NUM_ANGLES][NUM_SOURCE_RINGS]) {
+void show_still(const CRGB image[Sabre_Config::NUM_ANGLES][Sabre_Config::NUM_SOURCE_RINGS]) {
   memcpy(current_frame, image, sizeof(bufferA));
   screen_mode = ScreenMode::Still;
 }
 
 void flash_screen(CRGB colour) {
+  if (!screen_initialised) return;
   if (screen_mode != ScreenMode::Flash) {
     mode_before_flash = screen_mode;
     FastLED.clear();
@@ -126,7 +142,7 @@ void flash_screen(CRGB colour) {
 
 static void paint_screen(float angle_in, bool inverted) {  // called by loop 0
 
-  if (flip_rot_direction) {
+  if (global_config.flip_rot_direction) {
     angle_in = -angle_in;
   }
 
@@ -135,13 +151,13 @@ static void paint_screen(float angle_in, bool inverted) {  // called by loop 0
   int num_leds;
 
   if (inverted) {
-    positions = BOTTOM_LED_POSITIONS;
-    radial_mapping = bottom_radial_mapping;
-    num_leds = BOTTOM_NUM_LEDS;
+    positions = global_config.BOTTOM_LED_POSITIONS.data();
+    radial_mapping = bottom_radial_mapping.data();
+    num_leds = static_cast<int>(bottom_radial_mapping.size());
   } else {
-    positions = TOP_LED_POSITIONS;
-    radial_mapping = top_radial_mapping;
-    num_leds = TOP_NUM_LEDS;
+    positions = global_config.TOP_LED_POSITIONS.data();
+    radial_mapping = top_radial_mapping.data();
+    num_leds = static_cast<int>(top_radial_mapping.size());
   }
 
   FastLED.clear();
@@ -151,10 +167,10 @@ static void paint_screen(float angle_in, bool inverted) {  // called by loop 0
 
     int current_line = fmod(
         floor((led_angle + half_slice) / slice_size),
-        NUM_ANGLES);
+        Sabre_Config::NUM_ANGLES);
 
     if (current_line < 0) {
-      current_line += NUM_ANGLES;
+      current_line += Sabre_Config::NUM_ANGLES;
     }
 
     leds[i] = current_frame[current_line][radial_mapping[i]];
@@ -171,20 +187,20 @@ static void rainbow_line(bool calibration_mode) {  // called by loop 0 when not 
 
   unsigned long now = millis();
 
-  if (now - lastRainbowUpdate >= rainbow_delay) {
+  if (now - lastRainbowUpdate >= global_config.rainbow_delay) {
     if (calibration_mode) {
       leds[bow_pos] = CRGB::Green;
     } else {
       leds[bow_pos] = CHSV(bow_pos * hue_change, 255, 255);
     }
 
-    blur1d(leds, MAX_PHYSICAL_LEDS, 172);
-    fadeToBlackBy(leds, MAX_PHYSICAL_LEDS, 16);
+    blur1d(leds.data(), active_led_count, 172);
+    fadeToBlackBy(leds.data(), active_led_count, 16);
     FastLED.show();
 
-    bow_pos += dir;
+    bow_pos = constrain(bow_pos + dir, 0, active_led_count - 1);
 
-    if (bow_pos > MAX_PHYSICAL_LEDS - 1) {
+    if (bow_pos >= active_led_count - 1) {
       dir = -1;
     }
 
@@ -211,8 +227,8 @@ static void load_frame() {
     int maskByteIndex = 0;
 
     // Decode mask bits (2 per pixel)
-    for (int a = 0; a < NUM_ANGLES; a++) {
-      for (int r = 0; r < NUM_SOURCE_RINGS; r++) {
+    for (int a = 0; a < Sabre_Config::NUM_ANGLES; a++) {
+      for (int r = 0; r < Sabre_Config::NUM_SOURCE_RINGS; r++) {
         if (bitPos == 0)
           currentMaskByte = pgm_read_byte(&mask[maskByteIndex]);
         uint8_t mode = (currentMaskByte >> bitPos) & 0x03;  // extract 2 bits
@@ -246,16 +262,16 @@ static void load_frame() {
 }
 
 static void update_flash() {
-  if (millis() - lastFlashUpdate >= flash_delay) {
+  if (millis() - lastFlashUpdate >= global_config.flash_delay) {
     leds[flash_pos] = flash_colour;
-    blur1d(leds, MAX_PHYSICAL_LEDS, 172);
-    fadeToBlackBy(leds, MAX_PHYSICAL_LEDS, 20);
+    blur1d(leds.data(), active_led_count, 172);
+    fadeToBlackBy(leds.data(), active_led_count, 20);
     FastLED.show();
     flash_pos += 1;
     lastFlashUpdate = millis();
   }
 
-  if (flash_pos > MAX_PHYSICAL_LEDS - 1) {
+  if (flash_pos > active_led_count - 1) {
     flash_pos = 0;
     screen_mode = mode_before_flash;
   }

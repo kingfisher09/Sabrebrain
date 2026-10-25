@@ -21,7 +21,7 @@ struct SabreCalibration {
   uint16_t crc = 0;
 
   // Main accelerometer calibration
-  float accel_radius_m = approx_accel_rad / 1000.0f;
+  float accel_radius_m = global_config.approx_accel_rad / 1000.0f;
 
   // Graphics/movement phase alignment
   float heading_offset_deg = 0.0f;

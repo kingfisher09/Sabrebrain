@@ -1,3 +1,5 @@
+// Converts CRSF receiver channels into robot commands and tracks radio link health for the E-stop.
+
 #include "sabre_globals.h"
 
 static float powerCurve(float x);
@@ -8,14 +10,14 @@ void updateCRSF() {
   // transmitter inputs
   crsf.update();
 
-  slip = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(SLIP_CH)), 1));
-  trans = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(TRANS_CH)), 1));
-  spin = servoTofloat(crsf.rcToUs(crsf.getChannel(SPIN_CH)), 0);
-  head = servoTofloat(crsf.rcToUs(crsf.getChannel(HEAD_CH)), 1);
-  calib_button = crsf.rcToUs(crsf.getChannel(CALIB_CH)) > 1500;
-  image_mode = crsf.rcToUs(crsf.getChannel(IMAGE_CH));
-  emote = crsf.rcToUs(crsf.getChannel(EMOTE_CH)) > 1500;
-  if (crsf.rcToUs(crsf.getChannel(INVERT_CH)) > 1500) {
+  slip = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(global_config.SLIP_CH)), 1));
+  trans = powerCurve(servoTofloat(crsf.rcToUs(crsf.getChannel(global_config.TRANS_CH)), 1));
+  spin = servoTofloat(crsf.rcToUs(crsf.getChannel(global_config.SPIN_CH)), 0);
+  head = servoTofloat(crsf.rcToUs(crsf.getChannel(global_config.HEAD_CH)), 1);
+  calib_button = crsf.rcToUs(crsf.getChannel(global_config.CALIB_CH)) > 1500;
+  image_mode = crsf.rcToUs(crsf.getChannel(global_config.IMAGE_CH));
+  emote = crsf.rcToUs(crsf.getChannel(global_config.EMOTE_CH)) > 1500;
+  if (crsf.rcToUs(crsf.getChannel(global_config.INVERT_CH)) > 1500) {
     invert = 1;
   } else {
     invert = -1;
@@ -48,11 +50,11 @@ float servoTofloat(float servoSignal, int stickmode) {
 
   if (stickmode == 0)  // Bottom deadzone
   {
-    servoSignal = (servoSignal <= 1000 + deadzone) ? 1000 : servoSignal;
+    servoSignal = (servoSignal <= 1000 + global_config.deadzone) ? 1000 : servoSignal;
     return (servoSignal - 1000.0f) / 1000.0f;  // 1000-2000 -> 0 to 1
   } else if (stickmode == 1)                   // Centred deadzone
   {
-    servoSignal = (servoSignal >= 1500 - deadzone && servoSignal <= 1500 + deadzone) ? 1500 : servoSignal;
+    servoSignal = (servoSignal >= 1500 - global_config.deadzone && servoSignal <= 1500 + global_config.deadzone) ? 1500 : servoSignal;
     return (servoSignal - 1500.0f) / 500.0f;  // 1000-2000 -> -1 to 1
   } else {
     return 0.0f;  // invalid stickmode

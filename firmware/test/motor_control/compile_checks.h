@@ -7,26 +7,26 @@
 
 // Included by src/compile_tests.cpp during every normal PlatformIO build.
 
-// Check fixed OneShot settings at build time instead of during motor setup.
-static_assert(motor_config.protocol != MotorProtocol::OneShot ||
-                  (motor_config.left_pin >= 0 && motor_config.left_pin <= 29 &&
-                   (motor_config.count == MotorCount::Single ||
-                    (motor_config.right_pin >= 0 && motor_config.right_pin <= 29 &&
-                     motor_config.left_pin % 16 != motor_config.right_pin % 16))),
+constexpr MotorConfig default_motors{};
+
+// Check default OneShot settings at build time instead of during motor setup.
+static_assert(default_motors.protocol != MotorProtocol::OneShot ||
+                  (default_motors.left_pin >= 0 && default_motors.left_pin <= 29 &&
+                   (default_motors.count == MotorCount::Single ||
+                    (default_motors.right_pin >= 0 && default_motors.right_pin <= 29 &&
+                     default_motors.left_pin % 16 != default_motors.right_pin % 16))),
               "OneShot needs valid GPIOs with distinct PWM outputs");
-static_assert(motor_config.protocol != MotorProtocol::OneShot ||
-                  ((motor_config.left_direction == 1 || motor_config.left_direction == -1) &&
-                   (motor_config.count == MotorCount::Single ||
-                    motor_config.right_direction == 1 || motor_config.right_direction == -1)),
+static_assert(default_motors.protocol != MotorProtocol::OneShot ||
+                  ((default_motors.left_direction == 1 || default_motors.left_direction == -1) &&
+                   (default_motors.count == MotorCount::Single ||
+                    default_motors.right_direction == 1 || default_motors.right_direction == -1)),
               "OneShot motor directions must be 1 or -1");
-static_assert(motor_config.protocol != MotorProtocol::OneShot ||
-                  (motor_config.oneshot.frequency_hz > 0 &&
-                   motor_config.oneshot.min_pulse_us > 0 &&
-                   motor_config.oneshot.max_pulse_us > motor_config.oneshot.min_pulse_us &&
-                   motor_config.oneshot.max_pulse_us * motor_config.oneshot.frequency_hz < 1000000.0f),
+static_assert(default_motors.protocol != MotorProtocol::OneShot ||
+                  (default_motors.oneshot.frequency_hz > 0 &&
+                   default_motors.oneshot.min_pulse_us > 0 &&
+                   default_motors.oneshot.max_pulse_us > default_motors.oneshot.min_pulse_us &&
+                   default_motors.oneshot.max_pulse_us * default_motors.oneshot.frequency_hz < 1000000.0f),
               "OneShot pulses must be positive, ordered, and shorter than the PWM period");
-static_assert(motor_config.protocol != MotorProtocol::OneShot || speed_source != SensorType::ERPM,
-              "OneShot has no ERPM telemetry; select the accelerometer");
 
 // OneShot conversion checks.
 static_assert(oneshot_duty(-1.0f, OneShotMotorConfig{}) == 43.75f,
@@ -65,7 +65,7 @@ constexpr bool check_packet(bool neutral_only) {
     if (bits >= 11) {
       if ((accumulator & 0x7FF) != channels[channel++]) return false;
       accumulator >>= 11;
-      bits -= 11;
+      bits -= 11; 
     }
   }
   // Independently check CRC by polynomial division across type/payload/CRC.

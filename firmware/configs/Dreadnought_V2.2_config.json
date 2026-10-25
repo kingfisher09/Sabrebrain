@@ -1,0 +1,78 @@
+{
+  "type": "SCFG",
+  "schema_version": 1,
+  "robot_name": "Dreadnought",
+  "cell_count": 2,
+  "motors": {
+    "protocol": "dshot",
+    "count": 2,
+    "startup_delay_ms": 1000,
+    "left": {
+      "pin": 4,
+      "channel": 1,
+      "direction": 1
+    },
+    "right": {
+      "pin": 3,
+      "channel": 2,
+      "direction": -1
+    },
+    "dshot": {
+      "bitrate_kbps": 300,
+      "update_interval_us": 2000,
+      "desync_detection": true,
+      "desync_detect_time_ms": 200
+    },
+    "crsf": {
+      "tx_pin": 4,
+      "baud_rate": 420000,
+      "update_interval_us": 1000
+    },
+    "oneshot": {
+      "frequency_hz": 3500,
+      "min_pulse_us": 125,
+      "max_pulse_us": 250
+    }
+  },
+  "leds": {
+    "top": [
+      { "radius_mm": 0, "angle_deg": 0 },
+      { "radius_mm": 7, "angle_deg": 0 },
+      { "radius_mm": 14, "angle_deg": 0 },
+      { "radius_mm": 21, "angle_deg": 0 },
+      { "radius_mm": 28, "angle_deg": 0 },
+      { "radius_mm": 35, "angle_deg": 0 },
+      { "radius_mm": 42, "angle_deg": 0 },
+      { "radius_mm": 49, "angle_deg": 0 },
+      { "radius_mm": 56, "angle_deg": 0 },
+      { "radius_mm": 56.00, "angle_deg": 143.00 },
+      { "radius_mm": 60.64, "angle_deg": 137.78 },
+      { "radius_mm": 65.70, "angle_deg": 133.33 },
+      { "radius_mm": 71.11, "angle_deg": 129.53 },
+      { "radius_mm": 76.78, "angle_deg": 126.29 },
+      { "radius_mm": 82.67, "angle_deg": 123.49 },
+      { "radius_mm": 88.72, "angle_deg": 121.08 },
+      { "radius_mm": 94.91, "angle_deg": 118.97 },
+      { "radius_mm": 101.22, "angle_deg": 117.13 },
+      { "radius_mm": 107.62, "angle_deg": 115.50 },
+      { "radius_mm": 114.09, "angle_deg": 114.06 },
+      { "radius_mm": 120.63, "angle_deg": 112.77 },
+      { "radius_mm": 127.22, "angle_deg": 111.62 },
+      { "radius_mm": 133.86, "angle_deg": 110.58 },
+      { "radius_mm": 140.54, "angle_deg": 109.64 },
+      { "radius_mm": 147.26, "angle_deg": 108.78 },
+      { "radius_mm": 154.00, "angle_deg": 108.00 }
+    ],
+    "bottom": [
+      { "radius_mm": 0, "angle_deg": 0 },
+      { "radius_mm": 7, "angle_deg": 0 },
+      { "radius_mm": 14, "angle_deg": 0 },
+      { "radius_mm": 21, "angle_deg": 0 },
+      { "radius_mm": 28, "angle_deg": 0 },
+      { "radius_mm": 35, "angle_deg": 0 },
+      { "radius_mm": 42, "angle_deg": 0 },
+      { "radius_mm": 49, "angle_deg": 0 },
+      { "radius_mm": 56, "angle_deg": 0 }
+    ]
+  }
+}

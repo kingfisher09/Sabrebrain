@@ -1,3 +1,4 @@
+// Handles radio-driven calibration adjustments, trim points, and saving or cancelling changes.
 #include "sabre_calibration_control.h"
 #include "sabre_globals.h"
 #include "sabre_storage.h"
@@ -99,8 +100,8 @@ static void adjust_calibration() {
   float dt = (now - last_calibration_update_ms) / 1000.0f;
   last_calibration_update_ms = now;
 
-  global_calibration.accel_radius_m += head * RADIUS_ADJUST_RATE_M_S * dt;
-  global_calibration.heading_offset_deg -= slip * HEADING_ADJUST_RATE_DEG_S * dt;
+  global_calibration.accel_radius_m += head * global_config.RADIUS_ADJUST_RATE_M_S * dt;
+  global_calibration.heading_offset_deg -= slip * global_config.HEADING_ADJUST_RATE_DEG_S * dt;
 
   global_calibration.accel_radius_m = constrain(global_calibration.accel_radius_m, 0.005f, 0.500f);
 
@@ -136,7 +137,7 @@ static void update_trim() {
   float current_trim = get_trim_for_accel(filtered_accel);
 
   new_point.measured_accel = filtered_accel;
-  new_point.trim_spin_speed_deg_s = current_trim - (head * HEAD_CONTROL_SCALE);
+  new_point.trim_spin_speed_deg_s = current_trim - (head * global_config.HEAD_CONTROL_SCALE);
 
   bool point_replaced = false;
 
@@ -145,7 +146,7 @@ static void update_trim() {
     float distance =
         fabs(global_calibration.accel_trim_points[i].measured_accel - filtered_accel);
 
-    if (distance <= TRIM_POINT_REPLACE_RANGE) {
+    if (distance <= global_config.TRIM_POINT_REPLACE_RANGE) {
       global_calibration.accel_trim_points[i] = new_point;
       point_replaced = true;
       break;

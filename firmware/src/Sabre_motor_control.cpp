@@ -1,3 +1,5 @@
+// Drives one or two motors via DShot, CRSF, or OneShot, with startup, E-stop, and watchdog handling.
+
 #include "sabre_motor_control.h"
 #include "sabre_globals.h"
 #include "sabre_crsf_output.h"
@@ -64,14 +66,14 @@ motorSpeeds command_motors(float left, float right) {
   unsigned long nowish = millis();
 
   // Safety things
-  if (nowish - stopflag_time > E_stop_time) {  // E-stop, lost signal from transmitter
+  if (nowish - stopflag_time > global_config.E_stop_time) {  // E-stop, lost signal from transmitter
     right = 0;
     left = 0;
   } else {
     if (watchdog_enabled) {
       watchdog_update();
-    } else if (nowish > E_stop_time) {    // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
-      watchdog_enable(watchdog_time, 0);  // 0 sets mode to reboot if lost connection
+    } else if (nowish > global_config.E_stop_time) {    // only set watchdog after E-stop timeout has had a chance to kick in, prevents restart loop
+      watchdog_enable(global_config.watchdog_time, 0);  // 0 sets mode to reboot if lost connection
       watchdog_enabled = true;
       watchdog_update();
     }
@@ -105,9 +107,9 @@ motorSpeeds command_motors(float left, float right) {
 static bool setup_dshot(const MotorConfig& config) {
   // initialise motors
   if (config.count == MotorCount::Dual) {
-    motor_Right = new BidirDShotX1(config.right_pin, 300);
+    motor_Right = new BidirDShotX1(config.right_pin, config.dshot.bitrate_kbps);
   }
-  motor_Left = new BidirDShotX1(config.left_pin, 300);
+  motor_Left = new BidirDShotX1(config.left_pin, config.dshot.bitrate_kbps);
   motor_Left->sendThrottle(0);
   if (motor_Right) motor_Right->sendThrottle(0);
   return true;
@@ -126,7 +128,7 @@ static motorSpeeds command_dshot(float left, float right) {
   // Guard against oversending motor updates
   static unsigned long lastMotorUpdate = 0;
   unsigned long now = micros();
-  if (now - lastMotorUpdate < dshot_delay) return return_speeds;
+  if (now - lastMotorUpdate < active_config.dshot.update_interval_us) return return_speeds;
 
   // Convert -1.0 to 1.0 -> DSHOT signals, flip direction as desired
   int dshot_left = floatToDshot(left * active_config.left_direction);
@@ -136,7 +138,7 @@ static motorSpeeds command_dshot(float left, float right) {
   if (motor_Right) motor_Right->sendThrottle(dshot_right);
   lastMotorUpdate = now;
 
-  if (!desync_detection) return return_speeds;
+  if (!active_config.dshot.desync_detection) return return_speeds;
 
   static bool desyncing = false;
   if ((erpm_left > 63000 && fabs(left) < 0.001f) || (motor_Right && erpm_right > 63000 && fabs(right) < 0.001f)) {
@@ -145,7 +147,7 @@ static motorSpeeds command_dshot(float left, float right) {
       desyncing = true;
       start_desync = nowish;
     }
-    if (nowish - start_desync > desync_detect_time) {
+    if (nowish - start_desync > active_config.dshot.desync_detect_time_ms) {
       Serial.println("Desync");
       watchdog_reboot(0, 0, 1);
       while (true) {
@@ -194,7 +196,7 @@ static bool setup_crsf(const MotorConfig& config) {
     Serial.println("Invalid CRSF motor configuration");
     return false;
   }
-  if (speed_source == SensorType::ERPM) {
+  if (global_config.speed_source == SensorType::ERPM) {
     Serial.println("CRSF motor output has no ERPM telemetry; use the accelerometer");
     return false;
   }

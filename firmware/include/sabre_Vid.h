@@ -24,7 +24,7 @@ struct SabreVid {
   const uint16_t frameDurationMs;  // Duration of each frame in ms
 
   // --- Data arrays ---
-  const uint8_t (*masks)[MASK_BYTES_PER_FRAME];  // Fixed-length 2D array in PROGMEM
+  const uint8_t (*masks)[Sabre_Config::MASK_BYTES_PER_FRAME];  // Fixed-length 2D array in PROGMEM
   const CRGB* const* diffs;                                           // Array of pointers to per-frame diffs
 
   // --- Accessor functions ---

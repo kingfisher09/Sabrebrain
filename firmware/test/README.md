@@ -5,6 +5,8 @@ checks and CRSF conversion/packet checks. `src/compile_tests.cpp` includes
 this header and provides a single place to add other compile-time test suites.
 The OneShot conversion definition lives in `include/sabre_oneshot_output.h`
 so both motor control and the tests can evaluate the same function.
+Configuration assertions check a constexpr default `MotorConfig`;
+settings read from a file will require runtime validation in the loader.
 
 Use the usual PlatformIO **Build** action in VS Code, or `pio run`.
 Every `static_assert` must be true for compilation to succeed. No robot,

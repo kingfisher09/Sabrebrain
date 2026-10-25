@@ -1,11 +1,36 @@
+// Mounts FatFS, loads JSON configuration, and stores calibration with a CRC integrity check.
 #include "sabre_storage.h"
+#include "sabre_config.h"
 
 #include <FatFS.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <cmath>
+#include <ArduinoJson.h>
 
 static constexpr const char* CALIBRATION_PATH = "/SABREBRAIN/calibration.bin";
+static constexpr const char* CONFIG_DIRECTORY = "/SABREBRAIN/config";
+static constexpr const char* ERROR_PATH = "/SABREBRAIN/errors.txt";
+
+// Save the latest load failure before USB storage hands the filesystem to the PC.
+static bool config_error(const String& message) {
+  Serial.println(message);
+  if (!FatFS.exists("/SABREBRAIN") && !FatFS.mkdir("/SABREBRAIN")) {
+    Serial.println("Could not create error report folder");
+    return false;
+  }
+  File report = FatFS.open(ERROR_PATH, "w");
+  if (!report) {
+    Serial.println("Could not open errors.txt for writing");
+    return false;
+  }
+  const String contents = "Configuration load failed\r\n" + message +
+      "\r\nFix the configuration, eject the USB drive, then power cycle to retry.\r\n";
+  const size_t written = report.print(contents);
+  report.close();
+  if (written != contents.length()) Serial.println("Error report write incomplete");
+  return false;
+}
 
 // using static here makes this function private to this cpp
 static uint16_t calculate_crc16(const uint8_t* data, size_t length) {
@@ -100,5 +125,53 @@ bool load_calibration(SabreCalibration& cal) {
   }
 
   cal = loaded;
+  return true;
+}
+
+bool load_config(Sabre_Config& config) {
+  String config_name;
+  Dir directory = FatFS.openDir(CONFIG_DIRECTORY);
+  while (directory.next()) {
+    if (!directory.isFile()) continue;
+    String name = directory.fileName();
+    String lowercase_name = name;
+    lowercase_name.toLowerCase();
+    if (!lowercase_name.endsWith(".json")) continue;
+    if (config_name.length()) {
+      return config_error("Multiple JSON files in /SABREBRAIN/config: " + config_name +
+                          ", " + name + ". Keep exactly one JSON file in this folder.");
+    }
+    config_name = name;
+  }
+  if (!config_name.length()) {
+    return config_error("No JSON file found in /SABREBRAIN/config");
+  }
+
+  const String config_path = String(CONFIG_DIRECTORY) + "/" + config_name;
+  File file = FatFS.open(config_path, "r");
+
+  if (!file) {
+    return config_error("Could not open config file: " + config_path);
+  }
+
+  JsonDocument document;
+  DeserializationError error = deserializeJson(document, file);
+  file.close();
+
+  if (error) {
+    return config_error(config_path + ": JSON error: " + error.c_str());
+  }
+
+  std::string validation_error;
+  if (!config_from_json(document, config, &validation_error)) {
+    return config_error(config_path + ": validation error: " + validation_error.c_str());
+  }
+
+  // A successful load resolves the previous configuration error.
+  if (FatFS.exists(ERROR_PATH) && !FatFS.remove(ERROR_PATH)) {
+    Serial.println("Could not remove old errors.txt");
+  }
+  Serial.print("Loaded config: ");
+  Serial.println(config_name);
   return true;
 }

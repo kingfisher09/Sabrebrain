@@ -24,17 +24,11 @@ extern "C" {  // tels compiler this is C, not C++
 #include "config/sabre_calibration.h"
 #include "sabre_vid.h"
 
-// ---- Motor pins ----
-extern const int MOTOR_RIGHT_PIN;
-extern const int MOTOR_LEFT_PIN;
-
 // ---- RF channels (defined in main.cpp) ---- I
 extern CRSFforArduino crsf;
 
 // ---- Safety (defined in main.cpp) ----
 extern unsigned long stopflag_time;
-extern int E_stop_time;
-extern int watchdog_time;
 
 // ---- Movement (defined in main.cpp) ----
 extern float slip;
