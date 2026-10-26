@@ -1,4 +1,4 @@
-// Sends complete CRSF frames through a PIO serial output fed automatically by DMA.
+// Sends complete CRSF frames through a PIO serial output fed automatically by DMA. - I don't understand this but it's more efficient than handing off the packets 8 bytes at a time to PIO
 #include "sabre_crsf_output.h"
 
 #include <hardware/clocks.h>

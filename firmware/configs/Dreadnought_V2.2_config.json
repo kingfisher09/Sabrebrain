@@ -7,15 +7,17 @@
     "protocol": "dshot",
     "count": 2,
     "startup_delay_ms": 1000,
-    "left": {
+    "A": {
       "pin": 4,
-      "channel": 1,
-      "direction": 1
+      "channel": 1
     },
-    "right": {
+    "B": {
       "pin": 3,
-      "channel": 2,
-      "direction": -1
+      "channel": 2
+    },
+    "selection": {
+      "left": { "output": "A", "direction": 1 },
+      "right": { "output": "B", "direction": -1 }
     },
     "dshot": {
       "bitrate_kbps": 300,

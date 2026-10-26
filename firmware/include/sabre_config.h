@@ -13,6 +13,7 @@
 enum class SensorType { Accelerometer, ERPM };
 enum class MotorProtocol { DShot, CRSF, OneShot };
 enum class MotorCount { Single, Dual };
+enum class MotorOutput { A, B };
 
 struct DShotMotorConfig {
   int bitrate_kbps = 300;
@@ -23,8 +24,8 @@ struct DShotMotorConfig {
 
 struct CrsfMotorConfig {
   int tx_pin = 4;  // Shared serial output; independent of per-motor PWM/DShot pins.
-  int left_channel = 1;
-  int right_channel = 2;
+  int channelA = 1;
+  int channelB = 2;
   unsigned long baud_rate = 420000UL;
   unsigned long update_interval_us = 1000UL;
 };
@@ -38,10 +39,12 @@ struct OneShotMotorConfig {
 struct MotorConfig {
   MotorProtocol protocol = MotorProtocol::DShot;
   MotorCount count = MotorCount::Dual;
-  int left_pin = 4;
-  int right_pin = 3;
+  int pinA = 4;
+  int pinB = 3;
+  MotorOutput left_output = MotorOutput::A;
+  MotorOutput right_output = MotorOutput::B;
   int left_direction = 1;
-  int right_direction = -1;
+  int right_direction = 1;
   unsigned long startup_delay_ms = 1000UL;
   DShotMotorConfig dshot{};
   CrsfMotorConfig crsf{};

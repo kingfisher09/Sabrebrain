@@ -5,8 +5,8 @@
 #include "esc_passthrough.h"
 
 void passthrough() {
-    uint8_t pins[] = {static_cast<uint8_t>(global_config.motor_config.left_pin),
-                      static_cast<uint8_t>(global_config.motor_config.right_pin)};
+    uint8_t pins[] = {static_cast<uint8_t>(global_config.motor_config.pinA),
+                      static_cast<uint8_t>(global_config.motor_config.pinB)};
     beginPassthrough(pins, 2);
     Serial.println("Starting passthrough on pins " + String(pins[0]) + " & " + String(pins[1]));
     while (true) {

@@ -9,5 +9,5 @@ struct motorSpeeds {
 
 struct MotorConfig;
 
-void setup_motors(const MotorConfig& config);
+bool setup_motors(const MotorConfig& config);
 motorSpeeds command_motors(float left, float right);

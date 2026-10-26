@@ -8,6 +8,7 @@
 #include <Wire.h>
 #include <math.h>
 #include <utility>
+#include <atomic>
 
 // Hardware
 extern "C" {  // tels compiler this is C, not C++
@@ -24,22 +25,8 @@ extern "C" {  // tels compiler this is C, not C++
 #include "config/sabre_calibration.h"
 #include "sabre_vid.h"
 
-// ---- RF channels (defined in main.cpp) ---- I
-extern CRSFforArduino crsf;
-
-// ---- Safety (defined in main.cpp) ----
-extern unsigned long stopflag_time;
-
 // ---- Movement (defined in main.cpp) ----
-extern float slip;
-extern float trans;
-extern float head;
-extern float spin;
 extern bool headMode;
-extern int image_mode;
-extern bool emote;
-extern float invert;
-extern bool calib_button;
 extern float filtered_accel;
 
 // ---- Structures ----
@@ -47,7 +34,5 @@ extern SabreCalibration global_calibration;
 extern bool calibration_loaded;
 
 // ---- Function declarations ----
-void updateCRSF();
-void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t linkStatistics);
-void passthrough();
+
 float get_trim_for_accel(float accel);

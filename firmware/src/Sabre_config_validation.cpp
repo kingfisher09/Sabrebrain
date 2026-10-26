@@ -64,6 +64,20 @@ bool layout(JsonVariantConst value, const char* path, std::string* error) {
   }
   return true;
 }
+
+bool motor_side(JsonVariantConst value, const char* path, std::string* error) {
+  if (!optional_object(value, path, error)) return false;
+  const std::string prefix = std::string(path) + ".";
+  if (!value["output"].isUnbound() &&
+      (!value["output"].is<const char*>() ||
+       (std::strcmp(value["output"].as<const char*>(), "A") != 0 &&
+        std::strcmp(value["output"].as<const char*>(), "B") != 0)))
+    return fail(error, prefix + "output", "must be A or B");
+  if (!integer(value["direction"], (prefix + "direction").c_str(), -1, 1, error)) return false;
+  if (!value["direction"].isUnbound() && value["direction"].as<int>() == 0)
+    return fail(error, prefix + "direction", "must be 1 or -1");
+  return true;
+}
 }  // namespace
 
 bool validate_config(const JsonDocument& document, std::string* error) {
@@ -94,14 +108,23 @@ bool validate_config(const JsonDocument& document, std::string* error) {
   if (!integer(motors["count"], "motors.count", 1, 2, error) ||
       !integer(motors["startup_delay_ms"], "motors.startup_delay_ms", 0,
                std::numeric_limits<long>::max(), error) ||
-      !motor(motors["left"], "motors.left", error) ||
-      !motor(motors["right"], "motors.right", error)) return false;
+      !motor(motors["A"], "motors.A", error) ||
+      !motor(motors["B"], "motors.B", error)) return false;
+  // The wizard may test A and B even when only one motor is configured.
+  const JsonVariantConst selection = motors["selection"];
+  if (!optional_object(selection, "motors.selection", error) ||
+      !motor_side(selection["left"], "motors.selection.left", error) ||
+      !motor_side(selection["right"], "motors.selection.right", error)) return false;
+  const char* left_output = selection["left"]["output"] | "A";
+  const char* right_output = selection["right"]["output"] | "B";
   const bool dual = (motors["count"] | (defaults.count == MotorCount::Dual ? 2 : 1)) == 2;
-  const int left_pin = motors["left"]["pin"] | defaults.left_pin;
-  const int right_pin = motors["right"]["pin"] | defaults.right_pin;
-  if (dual && std::strcmp(protocol, "crsf") != 0 && left_pin == right_pin)
-    return fail(error, "motors", "left and right must use different pins");
-  if (dual && std::strcmp(protocol, "oneshot") == 0 && left_pin % 16 == right_pin % 16)
+  if (dual && std::strcmp(left_output, right_output) == 0)
+    return fail(error, "motors.selection", "left and right must use different outputs");
+  const int pinA = motors["A"]["pin"] | defaults.pinA;
+  const int pinB = motors["B"]["pin"] | defaults.pinB;
+  if (std::strcmp(protocol, "crsf") != 0 && pinA == pinB)
+    return fail(error, "motors", "A and B must use different pins");
+  if (std::strcmp(protocol, "oneshot") == 0 && pinA % 16 == pinB % 16)
     return fail(error, "motors", "pins must not share the same PWM slice/channel");
 
   const JsonVariantConst dshot = motors["dshot"];
@@ -125,10 +148,10 @@ bool validate_config(const JsonDocument& document, std::string* error) {
   const unsigned long interval = crsf["update_interval_us"] | defaults.crsf.update_interval_us;
   if (interval < (260000000ULL + baud - 1) / baud)
     return fail(error, "motors.crsf.update_interval_us", "too short to transmit a 26-byte frame");
-  const int left_channel = motors["left"]["channel"] | defaults.crsf.left_channel;
-  const int right_channel = motors["right"]["channel"] | defaults.crsf.right_channel;
-  if (dual && std::strcmp(protocol, "crsf") == 0 && left_channel == right_channel)
-    return fail(error, "motors", "left and right must use different CRSF channels");
+  const int channelA = motors["A"]["channel"] | defaults.crsf.channelA;
+  const int channelB = motors["B"]["channel"] | defaults.crsf.channelB;
+  if (std::strcmp(protocol, "crsf") == 0 && channelA == channelB)
+    return fail(error, "motors", "A and B must use different CRSF channels");
 
   const JsonVariantConst oneshot = motors["oneshot"];
   if (!optional_object(oneshot, "motors.oneshot", error) ||

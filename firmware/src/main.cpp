@@ -10,6 +10,8 @@
 #include "sabre_config.h"
 #include "sabre_usb_storage.h"
 #include "sabre_measure_battery.h"
+#include "sabre_radio.h"
+#include "esc_passthrough.h"
 
 // images here:
 #include "../media/image_taunt.h"
@@ -19,28 +21,13 @@
 // videos here:
 #include "../media/sabremation.h"
 
-CRSFforArduino crsf = CRSFforArduino(&Serial1);
-
-// functions
-void onLinkStatisticsUpdate(serialReceiverLayer::link_statistics_t);
-
-// safety stuff
-unsigned long stopflag_time = 0;
-
 Sabre_Config global_config;
 SabreCalibration global_calibration;
 
 bool calibration_loaded = false;
 
 // movement commands
-float slip = 0;
-float trans = 0;
-float head = 0;
-float spin = 0;
 bool headMode = false;  // remove this ASAP
-int image_mode;
-bool emote;
-float invert = 1;
 
 // rotation tracking
 float angle = 0;                    // current robot angle
@@ -98,111 +85,119 @@ void setup() {
     if (!setup_usb_storage()) Serial.println("USB drive startup failed");
     while (true) delay(1);
   }
-  if (boot_mode() == BootMode::MotorSelection) {
-    Serial.println("Motor selection is not implemented yet; motor outputs disabled");
-    while (true) delay(1);
-  }
   // Passthrough mode, keep this at the top of setup!
   if (boot_mode() == BootMode::Passthrough) {
     passthrough();
   }
+  
+  if (boot_mode() == BootMode::MotorSelection) {
+    const MotorSelection selection = run_motor_selection();
+    if (selection.valid) {
+      if (save_motor_selection(selection)) {
+        restart_in_file_transfer_mode();
+      } else {
+        Serial.println("Motor selection could not be saved. See /SABREBRAIN/errors.txt.");
+      }
+    }
 
-  Serial.println("Thread 0 starting...");
-  // Initialise CRSF for Arduino.
-  if (!crsf.begin()) {
-    Serial.println("CRSF for Arduino initialisation failed!");
-    while (1) {
-      delay(10);
+    while (true) {
+      command_motors(0, 0);
+      delay(1);
     }
   }
 
-  /* Set your link statistics callback. */
-  crsf.setLinkStatisticsCallback(onLinkStatisticsUpdate);
-
-  screen_setup();
-
   setup_motors(global_config.motor_config);
+  screen_setup();
+  Serial.println("Thread 0 starting...");
+
   Serial.println("Thread 0 started");
 }
 
 void setup1() {
   while (!boot_mode_selected()) delay(1);
-  if (boot_mode() != BootMode::Robot) {
+  if (boot_mode() == BootMode::USBStorage || boot_mode() == BootMode::Passthrough) {
     // Core 0 handles special modes; the onboard NeoPixel shows the selection.
     while (true) delay(1);
   }
-  
-  // Core 0 has already mounted FatFS and loaded a valid robot configuration.
+
+  // Receiver setup and updates belong to core 1 in both driving and wizard modes.
+  begin_radio_CRSF();
+
+  if (boot_mode() == BootMode::MotorSelection) {
+    while (true) {
+      update_radio_CRSF();
+      delay(1);
+    }
+  }
+
   setup_accelerometer();  // Start the reset timer using the configured power pin.
 
+  // Core 0 has already mounted FatFS and loaded a valid robot configuration.
   calibration_loaded = load_calibration(global_calibration);
-  
+
   if (!calibration_loaded) {
     Serial.println("Calibration load failed");
     global_calibration = SabreCalibration{};
   } else {
     Serial.println("Calibration loaded");
   }
-  
+
   settup_measure_bat(global_config);
   Serial.println("Thread 1 started");
 }
 
-void loop() { // Loop 0 handles motor commands, angle calc and updating pixels
+void loop() {                    // Loop 0 handles motor commands, angle calc and updating pixels
   unsigned long now = micros();  // # timing
   static int loopcount = 0;      // # timing
 
   // These active variables needed ask masks when calibrating
-  float active_slip = calibration_mode_active() ? 0.0f : slip;
-  float active_head = calibration_mode_active() ? 0.0f : head;
+  float active_slip = calibration_mode_active() ? 0.0f : radio_state.slip.load();
+  float active_head = calibration_mode_active() ? 0.0f : radio_state.head.load();
 
   // angle calc
-  zrot = zrotspd - (active_head * global_config.HEAD_CONTROL_SCALE) - global_config.head_trim;              // add in head for changing angle
-  angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);  // will not work if rotate more than 360Â° negative per loop
+  zrot = zrotspd - (active_head * global_config.HEAD_CONTROL_SCALE) - global_config.head_trim;  // add in head for changing angle
+  angle = fmod(angle + (zrot * (now - last_angle_time) / 1000000) + 360, 360);                  // will not work if rotate more than 360Ã‚Â° negative per loop
   last_angle_time = micros();
 
   float left_sig, right_sig;
-  bool spinning = spin > 0;
+  bool spinning = radio_state.spin.load() > 0;
 
   // robot control modes
   if (spinning) {  // spinning mode
 
     float cosresult = cos(radians(angle));
     float sinresult = sin(radians(angle));
-    float delta = (global_config.TRANS_SIGN * trans * cosresult) + (global_config.SLIP_SIGN * active_slip * sinresult);  // calculate motor delta
+    float delta = (global_config.TRANS_SIGN * radio_state.trans.load() * cosresult) + (global_config.SLIP_SIGN * active_slip * sinresult);  // calculate motor delta
 
     // prevent over translating which flips motor direction
-    float limit = spin * global_config.MAX_DELTA;
+    float limit = radio_state.spin.load() * global_config.MAX_DELTA;
     delta = (delta > limit) ? limit : ((delta < -limit) ? -limit : delta);
 
-    left_sig = spin + delta;
-    right_sig = -spin + delta;
+    left_sig = radio_state.spin.load() + delta;
+    right_sig = -radio_state.spin.load() + delta;
 
   } else {  // normal robot mode
 
     // normal driving with minimum motor speed
-    left_sig = slip + trans;
+    left_sig = radio_state.slip.load() + radio_state.trans.load();
     left_sig = (abs(left_sig) < global_config.min_drive) ? 0 : left_sig;
-    right_sig = -slip + trans;
+    right_sig = -radio_state.slip.load() + radio_state.trans.load();
     right_sig = (abs(right_sig) < global_config.min_drive) ? 0 : right_sig;
   }
 
-  update_screen(angle + global_calibration.heading_offset_deg, spinning, calibration_mode_active(), invert == 1);
-  motor_speeds = command_motors(left_sig * invert, right_sig * invert);
+  update_screen(angle + global_calibration.heading_offset_deg, spinning, calibration_mode_active(), radio_state.invert.load() == 1);
+  motor_speeds = command_motors(left_sig * radio_state.invert.load(), right_sig * radio_state.invert.load());
 }
 
-void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading images
+void loop1() {                // Loop 1 handles speed calculation and telemetry, also loading images
   serial_update_boot_mode();  // Core 1 owns serial commands and runtime filesystem writes.
   // loop time measurement. Could be moved to separate function but if it was accessed by the other thread everything would break
-  unsigned long now = micros();
-  static int loopcount = 0;  // # tiÃºming
-
   const bool new_accel_sample = update_accelerometer(filtered_accel);
   // Preserve the startup interlock: no radio motor commands before sensor readiness.
   if (!accelerometer_ready()) return;
 
-  updateCRSF();  // update control
-  handle_calibration_control();
+  update_radio_CRSF();           // update control
+  handle_calibration_control();  // checks for calibration mode inputs
 
   if (global_config.speed_source == SensorType::Accelerometer) {
     if (new_accel_sample) {
@@ -223,37 +218,21 @@ void loop1() {  // Loop 1 handles speed calculation and telemetry, also loading 
     zrotspd = average_ERPM / (global_config.base_ERPM_cal);
   }
 
-  // Telemetry stuff
-  static unsigned long lastGpsUpdate = 0;
-  if (now - lastGpsUpdate >= 500000) {
-    lastGpsUpdate = now;
-    float bat_volt = measure_bat();
-
-    // Update the GPS telemetry data with the new values.
-
-    // Telemetry depends on speed measurement mode
-    float telem_calib = 0;
-    if (global_config.speed_source == SensorType::Accelerometer) {
-      telem_calib = global_calibration.accel_radius_m * 100;
-    } else if (global_config.speed_source == SensorType::ERPM) {
-      telem_calib = global_config.base_ERPM_cal;
-    }
-    crsf.telemetryWriteGPS(0, 0, zrotspd * 6000 / 360, 0, telem_calib, global_calibration.accel_trim_point_count);
-    crsf.telemetryWriteBattery(bat_volt * 100.0f, 0, 0, 0);
-  }
+  // handle telemetry()
+  CRSF_radio_telem(zrotspd);
 
   DisplaySlot current_display;
 
   if (calibration_mode_active()) {
     current_display = DisplaySlot::Calibration;
 
-  } else if (emote) {
+  } else if (radio_state.emote.load()) {
     current_display = DisplaySlot::Emote;
 
-  } else if (image_mode < 1250) {
+  } else if (radio_state.image_mode.load() < 1250) {
     current_display = DisplaySlot::Low;
 
-  } else if (image_mode < 1750) {
+  } else if (radio_state.image_mode.load() < 1750) {
     current_display = DisplaySlot::Mid;
 
   } else {

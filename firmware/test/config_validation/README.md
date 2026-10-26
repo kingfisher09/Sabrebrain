@@ -12,7 +12,9 @@ g++ -std=c++17 -Iinclude -I.pio/libdeps/xiao_rp2040/ArduinoJson/src src/Sabre_co
 ArduinoJson is installed by the normal PlatformIO build. Run tests without
 defining `NDEBUG`, so assertions remain enabled. The suite checks defaults,
 type/schema_version errors, wrong JSON types, motor mappings, timing constraints,
-empty and expanded LED layouts, nonfinite positions, and the example file.
+empty and expanded LED layouts, nonfinite positions, and a self-contained JSON fixture.
+Motor selection checks cover swapped A/B mappings, direction corrections,
+invalid/shared outputs, and a single motor assigned to B.
 Unpacking checks cover protocol conversion, settings overrides (including
 false and zero values), replacing layouts, defaults on repeated loads, and
 preserving the destination when validation fails.

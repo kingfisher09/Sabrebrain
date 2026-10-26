@@ -44,12 +44,20 @@ bool config_from_json(const JsonDocument& document, Sabre_Config& config, std::s
   const int count = motors["count"] | (motor.count == MotorCount::Single ? 1 : 2);
   motor.count = count == 1 ? MotorCount::Single : MotorCount::Dual;
   motor.startup_delay_ms = motors["startup_delay_ms"] | motor.startup_delay_ms;
-  motor.left_pin = motors["left"]["pin"] | motor.left_pin;
-  motor.right_pin = motors["right"]["pin"] | motor.right_pin;
-  motor.left_direction = motors["left"]["direction"] | motor.left_direction;
-  motor.right_direction = motors["right"]["direction"] | motor.right_direction;
-  motor.crsf.left_channel = motors["left"]["channel"] | motor.crsf.left_channel;
-  motor.crsf.right_channel = motors["right"]["channel"] | motor.crsf.right_channel;
+  motor.pinA = motors["A"]["pin"] | motor.pinA;
+  motor.pinB = motors["B"]["pin"] | motor.pinB;
+  motor.left_direction = motors["A"]["direction"] | motor.left_direction;
+  motor.right_direction = motors["B"]["direction"] | motor.right_direction;
+  motor.crsf.channelA = motors["A"]["channel"] | motor.crsf.channelA;
+  motor.crsf.channelB = motors["B"]["channel"] | motor.crsf.channelB;
+
+  const JsonVariantConst selection = motors["selection"];
+  motor.left_output = std::strcmp(selection["left"]["output"] | "A", "A") == 0
+      ? MotorOutput::A : MotorOutput::B;
+  motor.right_output = std::strcmp(selection["right"]["output"] | "B", "A") == 0
+      ? MotorOutput::A : MotorOutput::B;
+  motor.left_direction = selection["left"]["direction"] | motor.left_direction;
+  motor.right_direction = selection["right"]["direction"] | motor.right_direction;
 
   const JsonVariantConst dshot = motors["dshot"];
   motor.dshot.bitrate_kbps = dshot["bitrate_kbps"] | motor.dshot.bitrate_kbps;

@@ -3,7 +3,7 @@
 #include "sabre_config.h"
 
 #include <Arduino.h>
-#include <atomic>
+#include <atomic>  // library designed to help 2 cores speak to eachother
 #include <cstring>
 #include <FatFS.h>
 #include <FastLED.h>
@@ -28,7 +28,7 @@ void show_mode_colour() {
   FastLED.show();
 }
 
-bool save_mode(BootMode mode) {
+bool save_restart_mode(BootMode mode) {  // function to save the mode for next startup
   if (!FatFS.exists("/SYSTEM") && !FatFS.mkdir("/SYSTEM")) return false;
   File file = FatFS.open(mode_path, "w");
   if (!file) return false;
@@ -52,13 +52,14 @@ void load_config_and_select_boot_mode() {
       Serial.println("Invalid next boot mode file; using build-time default");
     }
     // Always reset the file after reading, including zero or invalid contents.
-    if (!save_mode(BootMode::Robot)) {
+    if (!save_restart_mode(BootMode::Robot)) {
       Serial.println("Could not reset next boot mode; robot hardware will stay disabled");
       current_mode = BootMode::MotorSelection;
     }
   }
   // Finish loading configuration before releasing core 1 or starting hardware.
-  if (current_mode == BootMode::Robot && !load_config(global_config)) {
+  if ((current_mode == BootMode::Robot || current_mode == BootMode::MotorSelection) &&
+      !load_config(global_config)) {
     Serial.println("Configuration missing or invalid; starting USB file transfer");
     current_mode = BootMode::USBStorage;
   }
@@ -68,6 +69,17 @@ void load_config_and_select_boot_mode() {
 
 BootMode boot_mode() { return current_mode; }
 bool boot_mode_selected() { return selected.load(); }
+
+bool restart_in_file_transfer_mode() {
+  if (!save_restart_mode(BootMode::USBStorage)) {
+    Serial.println("Could not save file transfer request; motors remain stopped.");
+    return false;
+  }
+  Serial.println("Restarting into file transfer mode.");
+  Serial.flush();
+  rp2040.reboot();
+  while (true) delay(1);
+}
 
 void serial_update_boot_mode() {
   static bool selection_saved = false;
@@ -101,7 +113,7 @@ void serial_update_boot_mode() {
       default:
         continue;  // Ignore Enter and any other characters.
     }
-    if (!save_mode(requested_mode)) {
+    if (!save_restart_mode(requested_mode)) {
       Serial.println("Could not save next boot mode; please try again");
       return;
     }

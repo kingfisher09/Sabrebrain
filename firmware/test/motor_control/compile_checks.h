@@ -11,10 +11,10 @@ constexpr MotorConfig default_motors{};
 
 // Check default OneShot settings at build time instead of during motor setup.
 static_assert(default_motors.protocol != MotorProtocol::OneShot ||
-                  (default_motors.left_pin >= 0 && default_motors.left_pin <= 29 &&
+                  (default_motors.pinA >= 0 && default_motors.pinA <= 29 &&
                    (default_motors.count == MotorCount::Single ||
-                    (default_motors.right_pin >= 0 && default_motors.right_pin <= 29 &&
-                     default_motors.left_pin % 16 != default_motors.right_pin % 16))),
+                    (default_motors.pinB >= 0 && default_motors.pinB <= 29 &&
+                     default_motors.pinA % 16 != default_motors.pinB % 16))),
               "OneShot needs valid GPIOs with distinct PWM outputs");
 static_assert(default_motors.protocol != MotorProtocol::OneShot ||
                   ((default_motors.left_direction == 1 || default_motors.left_direction == -1) &&

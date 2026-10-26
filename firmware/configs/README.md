@@ -67,8 +67,31 @@ core starts robot hardware. On a fresh board, or if loading fails, it selects
 USB storage automatically for this boot. This fallback is not saved as the
 next mode: each power cycle retries Robot and checks the configuration again.
 
-`2` selects the future motor identification mode; for now it keeps
-robot hardware disabled. Core 1 stays idle in all special modes;
+`2` selects the serial motor wizard. After confirmation with Y, connect the
+transmitter, lower spin throttle to zero, then raise it to the desired test speed.
+The wizard applies that throttle to physical output A, asks which wheel moved
+(L/R for dual motors, Y/N for a single motor), and asks direction (F/B).
+Throttle remains adjustable while waiting for answers; lowering it to zero stops
+the motor. Dual motors then test B; a single motor only tests B if A did not move
+it. Throttle must return to zero before starting the next output. Core 1 updates
+the receiver while core 0 uses normal motor commands, including radio-link
+E-stop and watchdog handling. Radio loss is handled entirely by normal motor
+control, including watchdog reboot if the link remains lost; the wizard adds no
+separate radio recovery logic. Answers are single characters, case-insensitive, without
+requiring Enter. Motors are commanded to zero before the function returns.
+The returned selection contains left/right pin or CRSF channel numbers and
+direction corrections; a single motor uses the left fields. The wizard saves
+the mapping in `motors.selection` in the loaded JSON file, keeping its filename
+and unrelated settings. After a successful save it automatically restarts into
+file transfer mode (green NeoPixel), so you can back up the updated config.
+Eject the drive and power cycle to return to Robot with the new mapping.
+A previous-file backup is kept
+beside it with `.bak` appended; this does not count as a second JSON config.
+If a save fails, see `/SABREBRAIN/errors.txt`. If power is lost during replacement
+and only `.json.bak` remains, restore its `.json` name in USB storage.
+Motor selection loads the robot's config at startup
+and falls back to file transfer if that config is invalid.
+Core 1 stays idle in all special modes;
 the menu is available exclusively in Robot mode. Passthrough retains its
 dedicated serial operation. A one-shot passthrough request returns to Robot
 on the next startup; a build-time passthrough default applies when no valid
@@ -107,14 +130,20 @@ load leaves the old settings unchanged. Filesystem access remains in
 - `schema_version` identifies the file format, not the firmware version.
 - `robot_name` is a user-chosen label for backups and the future interface.
 - `protocol` is `dshot`, `crsf`, or `oneshot`.
-- `count` is 1 or 2. One motor uses the left mapping; right is then optional.
+- `count` is 1 or 2. A single motor uses the output selected for the left motor.
 - `startup_delay_ms` applies to all protocols.
-- `left` and `right` describe the logical motors and their direction correction
-  (`1` or `-1`). For DShot/OneShot, `pin` is the physical RP2040 GPIO number.
+- `A` and `B` identify physical motor outputs, independent of left/right naming.
+  For DShot/OneShot, `pin` is the physical RP2040 GPIO number.
   For CRSF, `channel` selects the ESC channel instead (1-based, defaults 1 for
-  left and 2 for right), with the shared `tx_pin` in the `crsf` block.
+  A and 2 for B), with the shared `tx_pin` in the `crsf` block.
   The example includes both mappings: DShot/OneShot use `pin` and ignore
   `channel`; CRSF uses `channel` and ignores the per-motor `pin`.
+- `selection.left` and `selection.right` each contain `output` (`"A"` or `"B"`)
+  and `direction` (`1` or `-1`). Defaults are left=A, right=B, both positive.
+  Dual motors must select different outputs; a single motor can use A or B.
+  Physical pin/channel definitions do not change when the wizard saves a mapping.
+  Old direction fields under `A`/`B` remain accepted as defaults for configs
+  without explicit selection directions.
 - Only the selected protocol needs its settings block. The loader
   supplies documented defaults for omitted optional settings. This example
   includes all three protocol blocks for reference; `protocol` selects which

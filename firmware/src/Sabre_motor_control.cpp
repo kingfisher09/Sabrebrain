@@ -2,6 +2,7 @@
 
 #include "sabre_motor_control.h"
 #include "sabre_globals.h"
+#include "sabre_radio.h"
 #include "sabre_crsf_output.h"
 #include "sabre_oneshot_output.h"
 #include <RP2040_PWM.h>
@@ -41,32 +42,41 @@ static motorSpeeds command_crsf(float left, float right, const MotorConfig& conf
 
 static bool setup_oneshot(const MotorConfig& config);
 static motorSpeeds command_oneshot(float left, float right);
+static motorSpeeds command_outputs(float left, float right);
 
 // Public motor control interface.
-void setup_motors(const MotorConfig& config) {
+bool setup_motors(const MotorConfig& config) {
   active_config = config;
+  // Protocol helpers treat A as logical left and B as logical right internally.
+  // Keep the stored physical A/B definitions unchanged; remap only this copy.
+  if (config.left_output == MotorOutput::B) {
+    std::swap(active_config.pinA, active_config.pinB);
+    std::swap(active_config.crsf.channelA, active_config.crsf.channelB);
+  }
   switch (active_config.protocol) {
     case MotorProtocol::DShot:
-      motors_initialised = setup_dshot(config);
+      motors_initialised = setup_dshot(active_config);
       break;
     case MotorProtocol::CRSF:
-      motors_initialised = setup_crsf(config);
+      motors_initialised = setup_crsf(active_config);
       break;
     case MotorProtocol::OneShot:
-      motors_initialised = setup_oneshot(config);
+      motors_initialised = setup_oneshot(active_config);
       break;
   }
   if (motors_initialised) {
     motor_init_time = millis();
     motor_startup_pending = true;
   }
+  return motors_initialised;
 }
 
 motorSpeeds command_motors(float left, float right) {
+  const unsigned long last_link_update_ms = radio_state.last_link_update_ms.load();
   unsigned long nowish = millis();
 
   // Safety things
-  if (nowish - stopflag_time > global_config.E_stop_time) {  // E-stop, lost signal from transmitter
+  if (nowish - last_link_update_ms > global_config.E_stop_time) {  // E-stop, lost signal from transmitter
     right = 0;
     left = 0;
   } else {
@@ -79,7 +89,12 @@ motorSpeeds command_motors(float left, float right) {
     }
   }
 
+  return command_outputs(left, right);
+}
+
+static motorSpeeds command_outputs(float left, float right) {
   if (!motors_initialised) return {};
+  const unsigned long nowish = millis();
 
   // Keep sending zero through the selected protocol while the ESC starts.
   // Latch completion so millis() rollover cannot restart the delay later.
@@ -107,9 +122,9 @@ motorSpeeds command_motors(float left, float right) {
 static bool setup_dshot(const MotorConfig& config) {
   // initialise motors
   if (config.count == MotorCount::Dual) {
-    motor_Right = new BidirDShotX1(config.right_pin, config.dshot.bitrate_kbps);
+    motor_Right = new BidirDShotX1(config.pinB, config.dshot.bitrate_kbps);
   }
-  motor_Left = new BidirDShotX1(config.left_pin, config.dshot.bitrate_kbps);
+  motor_Left = new BidirDShotX1(config.pinA, config.dshot.bitrate_kbps);
   motor_Left->sendThrottle(0);
   if (motor_Right) motor_Right->sendThrottle(0);
   return true;
@@ -175,10 +190,10 @@ static int floatToDshot(float value) {
   }
 
   if (value < 0.0f) {
-    // Map -1.0 → revMax, 0.0- → revMin
+    // Map -1.0 Ã¢â€ â€™ revMax, 0.0- Ã¢â€ â€™ revMin
     return revMin + (int)((-value) * (revMax - revMin));
   } else {
-    // Map 0.0+ → fwdMin, +1.0 → fwdMax
+    // Map 0.0+ Ã¢â€ â€™ fwdMin, +1.0 Ã¢â€ â€™ fwdMax
     return fwdMin + (int)(value * (fwdMax - fwdMin));
   }
 }
@@ -188,9 +203,9 @@ static bool setup_crsf(const MotorConfig& config) {
   const auto& crsf = config.crsf;
   const bool dual = config.count == MotorCount::Dual;
   if (crsf.tx_pin < 0 || crsf.tx_pin > 29 ||
-      crsf.left_channel < 1 || crsf.left_channel > 16 ||
-      (dual && (crsf.right_channel < 1 || crsf.right_channel > 16 ||
-                crsf.right_channel == crsf.left_channel)) ||
+      crsf.channelA < 1 || crsf.channelA > 16 ||
+      (dual && (crsf.channelB < 1 || crsf.channelB > 16 ||
+                crsf.channelB == crsf.channelA)) ||
       crsf.baud_rate == 0 || crsf.update_interval_us == 0 ||
       crsf.update_interval_us < (260000000ULL + crsf.baud_rate - 1) / crsf.baud_rate) {
     Serial.println("Invalid CRSF motor configuration");
@@ -212,10 +227,10 @@ static motorSpeeds command_crsf(float left, float right, const MotorConfig& conf
   if (!crsf_frame_started || now - last_crsf_update >= config.crsf.update_interval_us) {
     uint16_t channels[sabre_crsf::channel_count];
     for (auto& channel : channels) channel = sabre_crsf::neutral;
-    channels[config.crsf.left_channel - 1] =
+    channels[config.crsf.channelA - 1] =
         sabre_crsf::throttle_channel(left * config.left_direction);
     if (config.count == MotorCount::Dual) {
-      channels[config.crsf.right_channel - 1] =
+      channels[config.crsf.channelB - 1] =
           sabre_crsf::throttle_channel(right * config.right_direction);
     }
     sabre_crsf::encode_channels(channels, crsf_frame);
@@ -234,22 +249,22 @@ static bool setup_oneshot(const MotorConfig& config) {
   const auto& output = config.oneshot;
   const bool dual = config.count == MotorCount::Dual;
   const float zero_duty = oneshot_duty(0.0f, output);
-  oneshot_left = new RP2040_PWM(config.left_pin, output.frequency_hz, zero_duty);
+  oneshot_left = new RP2040_PWM(config.pinA, output.frequency_hz, zero_duty);
   // The constructor stores settings; setPWM() starts the hardware output.
   bool started = oneshot_left->setPWM();
   if (dual && started) {
-    oneshot_right = new RP2040_PWM(config.right_pin, output.frequency_hz, zero_duty);
+    oneshot_right = new RP2040_PWM(config.pinB, output.frequency_hz, zero_duty);
     started = oneshot_right->setPWM();
   }
   if (!started) {
     // Stop any partially initialised output and leave the signal pins low.
-    pwm_set_enabled(pwm_gpio_to_slice_num(config.left_pin), false);
-    if (dual) pwm_set_enabled(pwm_gpio_to_slice_num(config.right_pin), false);
-    digitalWrite(config.left_pin, LOW);
-    pinMode(config.left_pin, OUTPUT);
+    pwm_set_enabled(pwm_gpio_to_slice_num(config.pinA), false);
+    if (dual) pwm_set_enabled(pwm_gpio_to_slice_num(config.pinB), false);
+    digitalWrite(config.pinA, LOW);
+    pinMode(config.pinA, OUTPUT);
     if (dual) {
-      digitalWrite(config.right_pin, LOW);
-      pinMode(config.right_pin, OUTPUT);
+      digitalWrite(config.pinB, LOW);
+      pinMode(config.pinB, OUTPUT);
     }
     Serial.println("OneShot motor PWM initialisation failed");
   }
@@ -258,10 +273,10 @@ static bool setup_oneshot(const MotorConfig& config) {
 
 static motorSpeeds command_oneshot(float left, float right) {
   const auto& output = active_config.oneshot;
-  oneshot_left->setPWM(active_config.left_pin, output.frequency_hz,
+  oneshot_left->setPWM(active_config.pinA, output.frequency_hz,
                       oneshot_duty(left * active_config.left_direction, output));
   if (oneshot_right) {
-    oneshot_right->setPWM(active_config.right_pin, output.frequency_hz,
+    oneshot_right->setPWM(active_config.pinB, output.frequency_hz,
                          oneshot_duty(right * active_config.right_direction, output));
   }
   return {};  // OneShot does not return motor telemetry.

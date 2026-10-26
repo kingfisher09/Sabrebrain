@@ -1,6 +1,7 @@
 // Handles radio-driven calibration adjustments, trim points, and saving or cancelling changes.
 #include "sabre_calibration_control.h"
 #include "sabre_globals.h"
+#include "sabre_radio.h"
 #include "sabre_storage.h"
 #include "sabrescreen.h"
 
@@ -21,10 +22,10 @@ static void adjust_calibration();
 static bool calibration_save_pending = false;
 
 void handle_calibration_control() {
-  bool just_pressed = calib_button && !previous_save_button;
-  bool just_released = !calib_button && previous_save_button;
+  bool just_pressed = radio_state.calibration.load() && !previous_save_button;
+  bool just_released = !radio_state.calibration.load() && previous_save_button;
 
-  if (calibration_save_pending && spin == 0) {
+  if (calibration_save_pending && radio_state.spin.load() == 0) {
     if (save_calibration(global_calibration)) {
       flash_screen(CRGB::Green);
     } else {
@@ -38,7 +39,7 @@ void handle_calibration_control() {
   }
 
   // Enter calibration mode immediately after holding the button for 3 seconds while stationary
-  if (!calibration_mode && calib_button && spin == 0) {
+  if (!calibration_mode && radio_state.calibration.load() && radio_state.spin.load() == 0) {
     unsigned long press_duration = millis() - save_button_press_start;
 
     if (press_duration >= 3000) {
@@ -52,15 +53,15 @@ void handle_calibration_control() {
       ignore_next_release = false;
     } else {
       if (!calibration_mode) {
-        if (spin > 0) {
+        if (radio_state.spin.load() > 0) {
           update_trim();
         }
       } else {
-        if (spin == 0) {
+        if (radio_state.spin.load() == 0) {
           cancel_calibration();
         }
 
-        if (spin > 0) {
+        if (radio_state.spin.load() > 0) {
           if (commit_calibration()) {
             calibration_mode = false;
           }
@@ -70,14 +71,14 @@ void handle_calibration_control() {
   }
 
   if (calibration_mode) {
-    if (spin > 0) {
+    if (radio_state.spin.load() > 0) {
       adjust_calibration();
     } else {
       last_calibration_update_ms = millis();
     }
   }
 
-  previous_save_button = calib_button;
+  previous_save_button = radio_state.calibration.load();
 }
 
 static void enter_calibration() {
@@ -100,8 +101,8 @@ static void adjust_calibration() {
   float dt = (now - last_calibration_update_ms) / 1000.0f;
   last_calibration_update_ms = now;
 
-  global_calibration.accel_radius_m += head * global_config.RADIUS_ADJUST_RATE_M_S * dt;
-  global_calibration.heading_offset_deg -= slip * global_config.HEADING_ADJUST_RATE_DEG_S * dt;
+  global_calibration.accel_radius_m += radio_state.head.load() * global_config.RADIUS_ADJUST_RATE_M_S * dt;
+  global_calibration.heading_offset_deg -= radio_state.slip.load() * global_config.HEADING_ADJUST_RATE_DEG_S * dt;
 
   global_calibration.accel_radius_m = constrain(global_calibration.accel_radius_m, 0.005f, 0.500f);
 
@@ -137,11 +138,11 @@ static void update_trim() {
   float current_trim = get_trim_for_accel(filtered_accel);
 
   new_point.measured_accel = filtered_accel;
-  new_point.trim_spin_speed_deg_s = current_trim - (head * global_config.HEAD_CONTROL_SCALE);
+  new_point.trim_spin_speed_deg_s = current_trim - (radio_state.head.load() * global_config.HEAD_CONTROL_SCALE);
 
   bool point_replaced = false;
 
-  // If a point already exists within 1 m/s², overwrite it
+  // If a point already exists within 1 m/sÂ², overwrite it
   for (uint8_t i = 0; i < global_calibration.accel_trim_point_count; i++) {
     float distance =
         fabs(global_calibration.accel_trim_points[i].measured_accel - filtered_accel);

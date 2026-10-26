@@ -1,6 +1,8 @@
 // Mounts FatFS, loads JSON configuration, and stores calibration with a CRC integrity check.
 #include "sabre_storage.h"
 #include "sabre_config.h"
+#include "Sabre_motor_selection.h"
+#include "sabre_config_validation.h"
 
 #include <FatFS.h>
 #include <stdint.h>
@@ -11,6 +13,7 @@
 static constexpr const char* CALIBRATION_PATH = "/SABREBRAIN/calibration.bin";
 static constexpr const char* CONFIG_DIRECTORY = "/SABREBRAIN/config";
 static constexpr const char* ERROR_PATH = "/SABREBRAIN/errors.txt";
+static String loaded_config_path;
 
 // Save the latest load failure before USB storage hands the filesystem to the PC.
 static bool config_error(const String& message) {
@@ -24,7 +27,7 @@ static bool config_error(const String& message) {
     Serial.println("Could not open errors.txt for writing");
     return false;
   }
-  const String contents = "Configuration load failed\r\n" + message +
+  const String contents = "Configuration error\r\n" + message +
       "\r\nFix the configuration, eject the USB drive, then power cycle to retry.\r\n";
   const size_t written = report.print(contents);
   report.close();
@@ -129,6 +132,7 @@ bool load_calibration(SabreCalibration& cal) {
 }
 
 bool load_config(Sabre_Config& config) {
+  loaded_config_path = "";
   String config_name;
   Dir directory = FatFS.openDir(CONFIG_DIRECTORY);
   while (directory.next()) {
@@ -173,5 +177,70 @@ bool load_config(Sabre_Config& config) {
   }
   Serial.print("Loaded config: ");
   Serial.println(config_name);
+  loaded_config_path = config_path;
+  return true;
+}
+
+bool save_motor_selection(const MotorSelection& selection) {
+  if (!selection.valid || !loaded_config_path.length()) return false;
+  const MotorConfig& motor = global_config.motor_config;
+  const bool dual = motor.count == MotorCount::Dual;
+  const int outputA = motor.protocol == MotorProtocol::CRSF ? motor.crsf.channelA : motor.pinA;
+  const int outputB = motor.protocol == MotorProtocol::CRSF ? motor.crsf.channelB : motor.pinB;
+  if ((selection.L_chan != outputA && selection.L_chan != outputB) ||
+      (selection.L_dir != 1 && selection.L_dir != -1) ||
+      (dual && ((selection.R_chan != outputA && selection.R_chan != outputB) ||
+                selection.L_chan == selection.R_chan ||
+                (selection.R_dir != 1 && selection.R_dir != -1))))
+    return config_error("Invalid motor selection; configuration not changed");
+
+  // Read the original document so unrelated settings and unknown fields survive.
+  File source = FatFS.open(loaded_config_path, "r");
+  if (!source) return config_error("Could not open config for motor selection: " + loaded_config_path);
+  JsonDocument document;
+  const DeserializationError parse_error = deserializeJson(document, source);
+  source.close();
+  if (parse_error) return config_error("Could not read config for motor selection: " + String(parse_error.c_str()));
+
+  JsonObject mapping = document["motors"]["selection"].as<JsonObject>();
+  if (mapping.isNull()) mapping = document["motors"]["selection"].to<JsonObject>();
+  mapping["left"]["output"] = selection.L_chan == outputA ? "A" : "B";
+  mapping["left"]["direction"] = selection.L_dir;
+  if (dual) {
+    mapping["right"]["output"] = selection.R_chan == outputA ? "A" : "B";
+    mapping["right"]["direction"] = selection.R_dir;
+  } else {
+    // Keep the unused output distinct so switching back to dual remains explicit.
+    mapping["right"]["output"] = selection.L_chan == outputA ? "B" : "A";
+    mapping["right"]["direction"] = 1;
+  }
+  std::string validation_error;
+  if (!validate_config(document, &validation_error))
+    return config_error("Motor selection config validation failed: " + String(validation_error.c_str()));
+
+  const String temporary_path = loaded_config_path + ".tmp";
+  const String backup_path = loaded_config_path + ".bak";
+  File destination = FatFS.open(temporary_path, "w");
+  if (!destination) return config_error("Could not create temporary config file");
+  const size_t expected = measureJsonPretty(document);
+  const size_t written = serializeJsonPretty(document, destination);
+  destination.close();
+  if (written != expected) {
+    FatFS.remove(temporary_path);
+    return config_error("Motor selection config write incomplete; original unchanged");
+  }
+  // Keep the previous config as a non-JSON backup, ignored by config discovery.
+  if (FatFS.exists(backup_path) && !FatFS.remove(backup_path))
+    return config_error("Could not replace previous config backup; original unchanged");
+  if (!FatFS.rename(loaded_config_path, backup_path))
+    return config_error("Could not back up config; original unchanged");
+  if (!FatFS.rename(temporary_path, loaded_config_path)) {
+    const bool restored = FatFS.rename(backup_path, loaded_config_path);
+    return config_error(restored ? "Could not install updated config; original restored"
+                                : "Could not restore config; recover the .json.bak file in USB storage");
+  }
+  Serial.print("Motor selection saved to ");
+  Serial.println(loaded_config_path);
+  Serial.println("Power cycle to use the updated motor mapping.");
   return true;
 }
