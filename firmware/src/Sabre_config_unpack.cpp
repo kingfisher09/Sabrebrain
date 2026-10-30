@@ -25,6 +25,7 @@ bool config_from_json(const JsonDocument& document, Sabre_Config& config, std::s
   // type/schema_version were checked by validation; SCFG remains the struct's numeric tag.
   loaded.schema_version = document["schema_version"].as<uint16_t>();
   loaded.cell_count = document["cell_count"] | loaded.cell_count;
+  loaded.MAX_DELTA = document["max_delta"] | loaded.MAX_DELTA;
   if (!document["robot_name"].isUnbound()) {
     loaded.robot_name = document["robot_name"].as<std::string>();
   }

@@ -3,6 +3,7 @@
   "schema_version": 1,
   "robot_name": "Dreadnought",
   "cell_count": 2,
+  "max_delta": 0.3,
   "motors": {
     "protocol": "dshot",
     "count": 2,

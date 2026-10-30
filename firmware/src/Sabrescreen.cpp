@@ -32,6 +32,7 @@ int num_frames;
 unsigned long frame_time;
 
 static std::vector<CRGB> leds;
+static CLEDController* display_controller = nullptr;
 static int active_led_count = 0;
 static int hue_change = 0;
 static bool screen_initialised = false;
@@ -54,6 +55,7 @@ static std::vector<uint8_t> bottom_radial_mapping;
 static void create_radial_mapping(const LedPosition* positions, uint8_t* mapping, int num_leds) {
   float max_radius = 0;
 
+  // get max radius in LED map
   for (int i = 0; i < num_leds; i++) {
     if (positions[i].radius_mm > max_radius) {
       max_radius = positions[i].radius_mm;
@@ -86,9 +88,10 @@ void screen_setup() {
   pinMode(global_config.LED_POWER_PIN, OUTPUT);  // Turn on LED power
   digitalWrite(global_config.LED_POWER_PIN, HIGH);
 
-  FastLED.addLeds<APA102, Sabre_Config::headPin, Sabre_Config::headClock, BGR>(leds.data(), active_led_count);  // connect to LED strip
-  FastLED.clear();                                             // ensure all LEDs start off
-  FastLED.show();
+  // Update this controller directly: global FastLED.show() inherits the NeoPixel's 400 Hz limit.
+  display_controller = &FastLED.addLeds<APA102, Sabre_Config::headPin, Sabre_Config::headClock, BGR>(leds.data(), active_led_count);  // connect to LED strip
+  fill_solid(leds.data(), active_led_count, CRGB::Black);                                             // ensure all LEDs start off
+  display_controller->showLeds(FastLED.getBrightness());
 
   screen_initialised = true;
 }
@@ -131,7 +134,7 @@ void flash_screen(CRGB colour) {
   if (!screen_initialised) return;
   if (screen_mode != ScreenMode::Flash) {
     mode_before_flash = screen_mode;
-    FastLED.clear();
+    fill_solid(leds.data(), active_led_count, CRGB::Black);
   }
 
   flash_colour = colour;
@@ -160,7 +163,7 @@ static void paint_screen(float angle_in, bool inverted) {  // called by loop 0
     num_leds = static_cast<int>(top_radial_mapping.size());
   }
 
-  FastLED.clear();
+  fill_solid(leds.data(), active_led_count, CRGB::Black);
 
   for (int i = 0; i < num_leds; i++) {
     float led_angle = angle_in + positions[i].angle_deg;
@@ -176,7 +179,7 @@ static void paint_screen(float angle_in, bool inverted) {  // called by loop 0
     leds[i] = current_frame[current_line][radial_mapping[i]];
   }
 
-  FastLED.show();
+  display_controller->showLeds(FastLED.getBrightness());
 
   bow_pos = 0;  // means rainbow will always start at centre
 }
@@ -196,7 +199,7 @@ static void rainbow_line(bool calibration_mode) {  // called by loop 0 when not 
 
     blur1d(leds.data(), active_led_count, 172);
     fadeToBlackBy(leds.data(), active_led_count, 16);
-    FastLED.show();
+    display_controller->showLeds(FastLED.getBrightness());
 
     bow_pos = constrain(bow_pos + dir, 0, active_led_count - 1);
 
@@ -266,7 +269,7 @@ static void update_flash() {
     leds[flash_pos] = flash_colour;
     blur1d(leds.data(), active_led_count, 172);
     fadeToBlackBy(leds.data(), active_led_count, 20);
-    FastLED.show();
+    display_controller->showLeds(FastLED.getBrightness());
     flash_pos += 1;
     lastFlashUpdate = millis();
   }

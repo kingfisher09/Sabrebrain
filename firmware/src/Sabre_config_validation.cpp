@@ -93,6 +93,7 @@ bool validate_config(const JsonDocument& document, std::string* error) {
     return fail(error, "robot_name", "must be a string");
   if (!integer(document["cell_count"], "cell_count", 1,
                std::numeric_limits<int>::max(), error)) return false;
+  if (!number(document["max_delta"], "max_delta", 0, 1, error)) return false;
 
   const JsonVariantConst motors = document["motors"];
   if (!optional_object(motors, "motors", error)) return false;

@@ -9,10 +9,10 @@ final int VIDEO = 1;
 
 int mode = STILL;
 
-String image_name = "sabre_cal";
+String image_name = "sabre_error";
 
 // Used in STILL mode
-String image_path = "G:\\My Drive\\Robot\\Featherweight\\Dreadnought\\Sabre cal.png";
+String image_path = "G:\\My Drive\\Robot\\Featherweight\\Dreadnought\\Sabre error.png";
 
 // Used in VIDEO mode
 String video_path = "C:\\Users\\ofish\\Pictures\\Sabretooth\\Haloween\\Haloween no dog.mp4";

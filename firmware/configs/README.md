@@ -5,6 +5,9 @@ Put exactly one `.json` file in `/SABREBRAIN/config` in FatFS, for example
 this example does not upload it or change the robot's current settings.
 Calibration remains separate.
 
+`max_delta` limits translation modulation relative to spin throttle. It accepts
+numbers from 0 to 1 and defaults to 0.3 if omitted (30% of spin throttle).
+
 `cell_count` is the battery's number of series cells (a positive integer).
 It defaults to 1 if omitted and is used for per-cell voltage measurement.
 Set it to the actual battery cell count in each robot's JSON.
