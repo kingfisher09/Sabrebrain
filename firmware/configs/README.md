@@ -187,15 +187,16 @@ in that same object. JSON currently populates the robot name, motor options,
 and LED layouts. Other struct fields retain their defaults until their JSON
 mapping and validation are added.
 
-The startup mode, compiled image dimensions,
-and FastLED template pins remain `static constexpr` members of `Sabre_Config`.
-They are build-time options, not fields that a JSON file can change yet.
+The startup mode and FastLED template pins remain `static constexpr` members
+of `Sabre_Config`. They are build-time options, not fields a JSON file changes.
+The legacy image dimension constants are exporter defaults; Sabrescreen accepts
+each media item's own resolution (see `docs/sabrescreen-resolution.md`).
 Compile-time configuration checks cover defaults only; the JSON loader
 validates supported file values before publishing them to either core.
 
 Physical LED position lists are runtime settings, and their sizes determine
-the counts. Display and mapping buffers are sized during screen
-setup, and FastLED receives the configured count rather than a hard-coded 26.
+the counts. Hardware LED buffers are sized during screen setup; radial mappings
+are built for each media selection. FastLED receives the configured LED count.
 Changing counts or layouts requires restarting/reinitialising the
 display; do not resize its buffers while rendering. Allocation is limited by
 available RAM, not a compiled LED count.

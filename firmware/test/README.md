@@ -1,8 +1,11 @@
-# Compile-time motor checks
+# Compile-time checks
 
 `motor_control/compile_checks.h` contains OneShot configuration/conversion
 checks and CRSF conversion/packet checks. `src/compile_tests.cpp` includes
 this header and provides a single place to add other compile-time test suites.
+`sabrescreen/compile_checks.h` also checks resolution-independent radial
+mapping, mask stride, all four video diff modes on a rectangular frame, and
+compatibility with nondefault hardcoded image/video dimensions.
 The OneShot conversion definition lives in `include/sabre_oneshot_output.h`
 so both motor control and the tests can evaluate the same function.
 Configuration assertions check a constexpr default `MotorConfig`;

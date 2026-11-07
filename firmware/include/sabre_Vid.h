@@ -2,7 +2,7 @@
 #pragma once
 #include <Arduino.h>
 #include <FastLED.h>
-#include "sabre_config.h"
+#include "sabre_screen_frame.h"
 
 // -----------------------------------------------------------------------------
 // SabreVid — description of an exported animation for the POV system
@@ -24,12 +24,30 @@ struct SabreVid {
   const uint16_t frameDurationMs;  // Duration of each frame in ms
 
   // --- Data arrays ---
-  const uint8_t (*masks)[Sabre_Config::MASK_BYTES_PER_FRAME];  // Fixed-length 2D array in PROGMEM
+  const uint8_t* masks;  // Contiguous frame masks; stride belongs to this video.
   const CRGB* const* diffs;                                           // Array of pointers to per-frame diffs
+  const size_t maskBytesPerFrame;
+  const size_t maskFrameCount;
+
+  // Accept existing generated headers without tying their array width to config.
+  template<size_t Frames, size_t MaskBytes>
+  constexpr SabreVid(uint16_t angles, uint16_t radii, uint16_t frames, uint16_t duration,
+                    const uint8_t (&frame_masks)[Frames][MaskBytes],
+                    const CRGB* const* frame_diffs)
+      : numAngles(angles), numRadii(radii), numFrames(frames), frameDurationMs(duration),
+        masks(&frame_masks[0][0]), diffs(frame_diffs), maskBytesPerFrame(MaskBytes),
+        maskFrameCount(Frames) {}
+
+  // Flat data is also suitable for future file-loaded videos.
+  constexpr SabreVid(uint16_t angles, uint16_t radii, uint16_t frames, uint16_t duration,
+                    const uint8_t* frame_masks, const CRGB* const* frame_diffs)
+      : numAngles(angles), numRadii(radii), numFrames(frames), frameDurationMs(duration),
+        masks(frame_masks), diffs(frame_diffs),
+        maskBytesPerFrame(sabre_screen::mask_bytes(angles, radii)), maskFrameCount(frames) {}
 
   // --- Accessor functions ---
-  inline const uint8_t* getMask(uint16_t frame) const {
-    return masks[frame];  // each mask row has the same fixed length
+  constexpr const uint8_t* getMask(uint16_t frame) const {
+    return masks + static_cast<size_t>(frame) * maskBytesPerFrame;
   }
 
   inline const CRGB* getDiff(uint16_t frame) const {

@@ -73,7 +73,7 @@ struct Sabre_Config {
   int default_rot_dir = 1;              // #usersetting 1 for cw, -1 ccw
   float head_trim = 0;
 
-  // Compiled image/video dimensions: these must remain compile-time constants.
+  // Legacy exporter defaults. Sabrescreen uses each selected media item's dimensions.
   static constexpr int NUM_ANGLES = 150;
   static constexpr int NUM_SOURCE_RINGS = 23;  // #usersetting
   static constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_SOURCE_RINGS * 2 + 7) / 8;

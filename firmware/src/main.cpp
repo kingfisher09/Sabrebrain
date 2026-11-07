@@ -17,6 +17,7 @@
 #include "../media/image_taunt.h"
 #include "../media/sabre_cal.h"
 #include "../media/dreadnought_logo.h"
+#include "../media/targ_vid.h"
 
 // videos here:
 #include "../media/sabremation.h"
@@ -57,7 +58,7 @@ static void select_display(DisplaySlot slot) {
       break;
 
     case DisplaySlot::Mid:
-      show_still(dreadnought_logo);
+      play_video(targ_vid);
       break;
 
     case DisplaySlot::High:
