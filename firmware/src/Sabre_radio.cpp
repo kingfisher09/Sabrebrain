@@ -29,6 +29,7 @@ void update_radio_CRSF() {
   radio_state.trans = powerCurve(servoTofloat(read_channel(global_config.TRANS_CH), 1));
   radio_state.spin = servoTofloat(read_channel(global_config.SPIN_CH), 0);
   radio_state.head = servoTofloat(read_channel(global_config.HEAD_CH), 1);
+  radio_state.speed_limit = servoTofloat(read_channel(global_config.SPEED_LIMIT_CH), 0);
   radio_state.calibration = read_channel(global_config.CALIB_CH) > 1500;
   radio_state.image_mode = read_channel(global_config.IMAGE_CH);
   radio_state.emote = read_channel(global_config.EMOTE_CH) > 1500;

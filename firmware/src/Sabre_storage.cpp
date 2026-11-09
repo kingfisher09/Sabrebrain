@@ -64,6 +64,8 @@ bool validate_calibration(const SabreCalibration& cal) {
   if (cal.version != SABRE_CALIBRATION_VERSION) return false;
   if (cal.crc != calibration_crc(cal)) return false;
 
+  if (!isfinite(cal.max_speed) || cal.max_speed < 0.0f) return false;
+
   if (cal.heading_offset_deg < -360.0f || cal.heading_offset_deg > 360.0f) return false;
 
   if (cal.accel_trim_point_count > MAX_ACCEL_TRIM_POINTS) return false;
@@ -88,6 +90,8 @@ bool save_calibration(const SabreCalibration& cal) {
   cal_to_save.type = SABRE_TYPE_CALIBRATION;
   cal_to_save.version = SABRE_CALIBRATION_VERSION;
   cal_to_save.crc = calibration_crc(cal_to_save);
+
+  if (!validate_calibration(cal_to_save)) return false;
 
   File file = FatFS.open(CALIBRATION_PATH, "w");
 

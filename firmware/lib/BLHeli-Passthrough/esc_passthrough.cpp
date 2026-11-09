@@ -108,7 +108,15 @@ uint8_t processPassthrough(void) {
 		delay(10);
 		serial_command = true;
 		while (Serial.available()) {
-			serial_rx[serial_rx_counter] = Serial.read();
+			const uint8_t incoming = Serial.read();
+			// Ignore terminal/newline noise while waiting for a protocol frame.
+			if (serial_rx_counter == 0 && incoming != 0x24 && incoming != 0x2F) continue;
+			if (serial_rx_counter >= sizeof(serial_rx)) {
+				serial_rx_counter = 0;
+				serial_buffer_len = 0;
+				continue;
+			}
+			serial_rx[serial_rx_counter] = incoming;
 
 			if ((serial_rx_counter == 4) && (serial_rx[0] == 0x2F)) {
 				// 4 Way Command: Size (0 = 256) + 7 Byte Overhead
@@ -141,7 +149,8 @@ uint8_t processPassthrough(void) {
 			serial_command    = false;
 			serial_rx_counter = 0;
 			serial_tx_counter = 0;
-		} else if (serial_rx[0] == 0x24 && serial_rx[1] == 0x4D && serial_rx[2] == 0x3C) {
+		} else if (serial_rx_counter >= 6 && serial_rx_counter == serial_buffer_len &&
+		           serial_rx[0] == 0x24 && serial_rx[1] == 0x4D && serial_rx[2] == 0x3C) {
 			// MSP Command
 			// MSP Proceed
 			serial_tx_counter = MSP_Check(serial_rx, serial_rx_counter);

@@ -94,6 +94,10 @@ bool validate_config(const JsonDocument& document, std::string* error) {
   if (!integer(document["cell_count"], "cell_count", 1,
                std::numeric_limits<int>::max(), error)) return false;
   if (!number(document["max_delta"], "max_delta", 0, 1, error)) return false;
+  if (!number(document["spin_limit_kp"], "spin_limit_kp", 0,
+              std::numeric_limits<float>::max(), error)) return false;
+  if (!integer(document["saturation_width"], "saturation_width", 0,
+               std::numeric_limits<int>::max(), error)) return false;
 
   const JsonVariantConst motors = document["motors"];
   if (!optional_object(motors, "motors", error)) return false;

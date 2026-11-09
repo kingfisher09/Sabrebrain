@@ -9,6 +9,7 @@ static bool calibration_mode = false;  // this is private, only exposed by the g
 static SabreCalibration calibration_backup;
 
 static bool previous_save_button = false;
+static bool previous_speed_limit_button = false;
 static bool ignore_next_release = false;
 static unsigned long save_button_press_start = 0;
 static unsigned long last_calibration_update_ms = 0;
@@ -20,6 +21,25 @@ static void update_trim();
 static void sort_trim_points();
 static void adjust_calibration();
 static bool calibration_save_pending = false;
+
+void handle_speed_limit_control(float current_speed) {
+  const bool pressed = radio_state.speed_limit.load() > 0.5f;
+  // Recalculated on every call; const only prevents changes within this call.
+  // The static previous_speed_limit_button remembers the state between calls.
+  const bool just_released = previous_speed_limit_button && !pressed;
+  previous_speed_limit_button = pressed;
+  if (!just_released || calibration_mode) return;
+
+  SabreCalibration updated = global_calibration;
+  updated.max_speed = fabs(current_speed);
+  if (save_calibration(updated)) {
+    global_calibration.max_speed = updated.max_speed;
+    calibration_loaded = true;
+    flash_screen(CRGB::Green);
+  } else {
+    flash_screen(CRGB::Red);
+  }
+}
 
 void handle_calibration_control() {
   bool just_pressed = radio_state.calibration.load() && !previous_save_button;

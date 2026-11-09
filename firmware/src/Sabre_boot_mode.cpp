@@ -58,7 +58,8 @@ void load_config_and_select_boot_mode() {
     }
   }
   // Finish loading configuration before releasing core 1 or starting hardware.
-  if ((current_mode == BootMode::Robot || current_mode == BootMode::MotorSelection) &&
+  if ((current_mode == BootMode::Robot || current_mode == BootMode::MotorSelection ||
+       current_mode == BootMode::Passthrough) &&
       !load_config(global_config)) {
     Serial.println("Configuration missing or invalid; starting USB file transfer");
     current_mode = BootMode::USBStorage;

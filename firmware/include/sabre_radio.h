@@ -9,6 +9,7 @@ struct RadioState {
   std::atomic<float> trans{0};
   std::atomic<float> spin{0};
   std::atomic<float> head{0};
+  std::atomic<float> speed_limit{0};  // Normalised 0..1.
   std::atomic<bool> calibration{false};
   std::atomic<bool> emote{false};
   std::atomic<int> image_mode{0};

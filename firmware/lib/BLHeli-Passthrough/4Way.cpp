@@ -70,7 +70,7 @@ uint16_t Check_4Way(uint8_t buf[]) {
 			delayWhileRead(50);
 			// read Answer Format = BootMsg("471c") SIGNATURE_001, SIGNATURE_002, BootVersion, BootPages (,ACK = brSUCCESS = 0x30)
 			RX_Size = GetESC(RX_Buf, 200);
-			if (RX_Buf[RX_Size - 1] == brSUCCESS) {
+			if (RX_Size >= 6 && RX_Buf[RX_Size - 1] == brSUCCESS) {
 				buf[5] = RX_Buf[5]; // Device Signature2?
 				buf[6] = RX_Buf[4]; // Device Signature1?
 				buf[7] = RX_Buf[3]; // "c"?

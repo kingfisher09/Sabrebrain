@@ -10,15 +10,20 @@
 
 #define SABRE_CONFIG_VERSION 1
 
-enum class SensorType { Accelerometer, ERPM };
-enum class MotorProtocol { DShot, CRSF, OneShot };
-enum class MotorCount { Single, Dual };
-enum class MotorOutput { A, B };
+enum class SensorType { Accelerometer,
+                        ERPM };
+enum class MotorProtocol { DShot,
+                           CRSF,
+                           OneShot };
+enum class MotorCount { Single,
+                        Dual };
+enum class MotorOutput { A,
+                         B };
 
 struct DShotMotorConfig {
   int bitrate_kbps = 300;
   unsigned long update_interval_us = 2000UL;
-  bool desync_detection = true;  // #usersetting
+  bool desync_detection = true;                 // #usersetting
   unsigned long desync_detect_time_ms = 200UL;  // #advancedusersetting
 };
 
@@ -65,13 +70,16 @@ struct Sabre_Config {
   static constexpr BootMode boot_mode = BootMode::Robot;
 
   // Movement settings
-  float min_drive = 0.03;               // #advancedusersetting
-  float HEAD_CONTROL_SCALE = 330;       // #advancedusersetting
-  int TRANS_SIGN = -1;                  // #advancedusersetting
-  int SLIP_SIGN = -1;                   // #advancedusersetting
-  float MAX_DELTA = 0.3;                // #advancedusersetting - used to limit maximum delta in motor commands when translating
-  int default_rot_dir = 1;              // #usersetting 1 for cw, -1 ccw
+  float min_drive = 0.03;          // #advancedusersetting
+  float HEAD_CONTROL_SCALE = 330;  // #advancedusersetting
+  int TRANS_SIGN = -1;             // #advancedusersetting
+  int SLIP_SIGN = -1;              // #advancedusersetting
+  float MAX_DELTA = 0.3;           // #advancedusersetting - used to limit maximum delta in motor commands when translating
+  float spin_limit_kp = 0.0001f;   // #advancedusersetting - motor power per degree/second of overspeed
+  int default_rot_dir = 1;         // #usersetting 1 for cw, -1 ccw
   float head_trim = 0;
+  int saturation_width = 0;        // #advancedusersetting
+  int saturation_half_width;
 
   // Legacy exporter defaults. Sabrescreen uses each selected media item's dimensions.
   static constexpr int NUM_ANGLES = 150;
@@ -79,11 +87,11 @@ struct Sabre_Config {
   static constexpr int MASK_BYTES_PER_FRAME = (NUM_ANGLES * NUM_SOURCE_RINGS * 2 + 7) / 8;
 
   // Settings
-  int deadzone = 30;              // #advancedusersetting for transmitter sticks
-  int max_head = 360;             // #advancedusersetting max heading change in deg/s
-  int rainbow_delay = 40;         // #usersetting
-  int flash_delay = 12;           // #usersetting
-  int approx_accel_rad = 84;      // #usersetting
+  int deadzone = 30;          // #advancedusersetting for transmitter sticks
+  int max_head = 360;         // #advancedusersetting max heading change in deg/s
+  int rainbow_delay = 40;     // #usersetting
+  int flash_delay = 12;       // #usersetting
+  int approx_accel_rad = 84;  // #usersetting
 
   // ---- Calibration ----
   float RADIUS_ADJUST_RATE_M_S = 0.008f;
@@ -96,12 +104,12 @@ struct Sabre_Config {
   bool flip_rot_direction = true;  // #usersetting - false for rotating with compass, true for against
 
   // Pins
-  int LED_POWER_PIN = 11;   // builtin LED power control pin
-  int LED_PIN = 12;         // data pin for NeoPixel
+  int LED_POWER_PIN = 11;  // builtin LED power control pin
+  int LED_PIN = 12;        // data pin for NeoPixel
   // FastLED uses these pins as template arguments, so they remain compile-time.
-  static constexpr int headPin = 27;         // LED heading data pin
-  static constexpr int headClock = 28;       // LED clock pin
-  int accel_pow = 26;       // pin to power accelerometer, allows it to be restarted easily
+  static constexpr int headPin = 27;    // LED heading data pin
+  static constexpr int headClock = 28;  // LED clock pin
+  int accel_pow = 26;                   // pin to power accelerometer, allows it to be restarted easily
 
   // Batery
   int bat_pin = 2;
@@ -123,14 +131,12 @@ struct Sabre_Config {
   int CALIB_CH = 6;
   int IMAGE_CH = 7;
   int EMOTE_CH = 8;  // used to trigger emote message
+  int SPEED_LIMIT_CH = 9;
 
   // Physical LED counts and layouts are runtime configuration.
-  std::vector<LedPosition> TOP_LED_POSITIONS = {
-  };
+  std::vector<LedPosition> TOP_LED_POSITIONS = {};
 
-  std::vector<LedPosition> BOTTOM_LED_POSITIONS = {
-  };
-
+  std::vector<LedPosition> BOTTOM_LED_POSITIONS = {};
 };
 
 extern Sabre_Config global_config;

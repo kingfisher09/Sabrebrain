@@ -4,7 +4,7 @@
 #include "config/sabre_file_types.h"
 #include "sabre_config.h"
 
-#define SABRE_CALIBRATION_VERSION 1
+#define SABRE_CALIBRATION_VERSION 2
 
 constexpr uint8_t MAX_ACCEL_TRIM_POINTS = 4;
 
@@ -25,6 +25,9 @@ struct SabreCalibration {
 
   // Graphics/movement phase alignment
   float heading_offset_deg = 0.0f;
+
+  // Maximum rotational speed in degrees per second; zero means not calibrated.
+  float max_speed = 0.0f;
 
   // Valid trim points are always stored in order of increasing acceleration
   uint8_t accel_trim_point_count = 0;

@@ -26,6 +26,9 @@ bool config_from_json(const JsonDocument& document, Sabre_Config& config, std::s
   loaded.schema_version = document["schema_version"].as<uint16_t>();
   loaded.cell_count = document["cell_count"] | loaded.cell_count;
   loaded.MAX_DELTA = document["max_delta"] | loaded.MAX_DELTA;
+  loaded.spin_limit_kp = document["spin_limit_kp"] | loaded.spin_limit_kp;
+  loaded.saturation_width = document["saturation_width"] | loaded.saturation_width;
+  loaded.saturation_half_width = loaded.saturation_width / 2;
   if (!document["robot_name"].isUnbound()) {
     loaded.robot_name = document["robot_name"].as<std::string>();
   }

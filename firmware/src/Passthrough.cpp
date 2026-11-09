@@ -7,8 +7,9 @@
 void passthrough() {
     uint8_t pins[] = {static_cast<uint8_t>(global_config.motor_config.pinA),
                       static_cast<uint8_t>(global_config.motor_config.pinB)};
-    beginPassthrough(pins, 2);
-    Serial.println("Starting passthrough on pins " + String(pins[0]) + " & " + String(pins[1]));
+    const uint8_t pin_count = global_config.motor_config.count == MotorCount::Single ? 1 : 2;
+    beginPassthrough(pins, pin_count);
+    // Keep the USB serial stream exclusively for MSP/4-way protocol traffic.
     while (true) {
         processPassthrough();
     }

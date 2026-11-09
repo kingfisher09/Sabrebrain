@@ -90,7 +90,7 @@ void setup() {
   if (boot_mode() == BootMode::Passthrough) {
     passthrough();
   }
-  
+
   if (boot_mode() == BootMode::MotorSelection) {
     const MotorSelection selection = run_motor_selection();
     if (selection.valid) {
@@ -151,7 +151,7 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   unsigned long now = micros();  // # timing
   static int loopcount = 0;      // # timing
 
-  // These active variables needed ask masks when calibrating
+  // These active variables needed to masks inputs when calibrating
   float active_slip = calibration_mode_active() ? 0.0f : radio_state.slip.load();
   float active_head = calibration_mode_active() ? 0.0f : radio_state.head.load();
 
@@ -161,21 +161,44 @@ void loop() {                    // Loop 0 handles motor commands, angle calc an
   last_angle_time = micros();
 
   float left_sig, right_sig;
-  bool spinning = radio_state.spin.load() > 0;
+  float spin = radio_state.spin.load();
+  bool spinning = spin > 0;
 
   // robot control modes
   if (spinning) {  // spinning mode
 
+    // Only reduce requested power above the saved limit; zero disables limiting.
+    if (global_calibration.max_speed > 0.0f && radio_state.speed_limit <= 0.5) {
+      const float overspeed = max(0.0f, fabsf(zrotspd) - global_calibration.max_speed);
+      spin = constrain(spin - global_config.spin_limit_kp * overspeed, 0.0f, spin);
+    }
+
     float cosresult = cos(radians(angle));
     float sinresult = sin(radians(angle));
+
+    // capping logic
+    if (angle >= 360.0f - global_config.saturation_half_width || angle <= global_config.saturation_half_width) {
+      // Centred at 0 degrees.
+      cosresult = 1;
+    } else if (angle >= 90.0f - global_config.saturation_half_width && angle <= 90.0f + global_config.saturation_half_width) {
+      // Centred at 90 degrees.
+      sinresult = 1;
+    } else if (angle >= 180.0f - global_config.saturation_half_width && angle <= 180.0f + global_config.saturation_half_width) {
+      // Centred at 180 degrees.
+      cosresult = -1;
+    } else if (angle >= 270.0f - global_config.saturation_half_width && angle <= 270.0f + global_config.saturation_half_width) {
+      // Centred at 270 degrees.
+      sinresult = -1;
+    }
+
     float delta = (global_config.TRANS_SIGN * radio_state.trans.load() * cosresult) + (global_config.SLIP_SIGN * active_slip * sinresult);  // calculate motor delta
 
     // prevent over translating which flips motor direction
-    float limit = radio_state.spin.load() * global_config.MAX_DELTA;
+    float limit = spin * global_config.MAX_DELTA;
     delta = (delta > limit) ? limit : ((delta < -limit) ? -limit : delta);
 
-    left_sig = radio_state.spin.load() + delta;
-    right_sig = -radio_state.spin.load() + delta;
+    left_sig = spin + delta;
+    right_sig = -spin + delta;
 
   } else {  // normal robot mode
 
@@ -220,6 +243,7 @@ void loop1() {                // Loop 1 handles speed calculation and telemetry,
   }
 
   // handle telemetry()
+  handle_speed_limit_control(zrotspd);
   CRSF_radio_telem(zrotspd);
 
   DisplaySlot current_display;
